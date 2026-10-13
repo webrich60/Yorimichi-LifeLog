@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#173c5a"><title>よりみち日和 | 本番アプリ入口</title>
+<style>
+:root{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;color:#183447;background:#f4f8f7}*{box-sizing:border-box}body{margin:0;padding:18px;min-height:100svh}main{max-width:680px;margin:4vh auto 0}header{display:flex;align-items:center;gap:13px;margin-bottom:20px}.logo{height:50px;width:50px;border-radius:16px;background:#183d5c;color:#fff;display:grid;place-items:center;font-size:30px;box-shadow:0 6px 17px #173b5a25}h1{font-size:clamp(23px,4vw,32px);margin:0;font-weight:900}h2{font-size:21px;margin:0 0 14px}p{line-height:1.75;margin:7px 0;color:#3a5668}.subtitle{font-size:12px;letter-spacing:.08em;color:#63788a;font-weight:800}.panel{background:white;border:2px solid #cadde2;border-radius:22px;padding:24px;box-shadow:0 10px 24px #1538470e}.status{background:#edf7f5;border-radius:12px;padding:11px 14px;color:#145c64;font-weight:800;margin:16px 0}.field{display:grid;gap:7px;margin:18px 0 12px}.field label{font-weight:900;font-size:15px}.field input{min-height:50px;font-size:16px;border-radius:11px;border:2px solid #9dbbc5;padding:12px;width:100%;color:#162f48}.field input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #ddad55;outline-offset:2px}button{min-height:49px;border:0;border-radius:12px;background:#177981;color:white;font-weight:900;font-size:16px;padding:12px 17px;cursor:pointer}.actions{display:flex;gap:8px;flex-wrap:wrap}.secondary{background:#eaf2f4;color:#183d5c}.small{font-size:13px;color:#637583;margin-top:14px}.error{color:#aa332e;font-weight:850;min-height:22px;margin-top:7px}.hidden{display:none}ol{padding-left:22px;line-height:1.9}li{margin:4px 0}a{color:#116780;overflow-wrap:anywhere}footer{font-size:12px;color:#657783;margin-top:22px;text-align:center}#openOnly{display:none}@media(max-width:640px){body{padding:13px}main{margin:15px auto}.panel{padding:17px;border-radius:17px}button{width:100%}.actions{display:grid}.subtitle{font-size:11px}}
+</style></head><body><main><header><div class="logo">✿</div><div><h1>よりみち日和</h1><div class="subtitle">思い出と行きたい場所の記録帳</div></div></header>
+<section class="panel"><h2>🔐 本番アプリに接続</h2><p>この入口から、あなた専用のGASアプリを開きます。思い出・訪問写真・行きたい場所はGoogleスプレッドシートとドライブに保存されます。</p><p class="status" id="status">GASウェブアプリのURLが未設定です</p>
+<div id="openOnly" class="actions"><button id="openBtn" type="button">本番アプリを開く ↗</button><button id="changeBtn" class="secondary" type="button">接続先を変更</button></div>
+<form id="setup"><div class="field"><label for="gasUrl">GASウェブアプリのURL</label><input id="gasUrl" type="url" autocomplete="off" spellcheck="false" inputmode="url" placeholder="https://script.google.com/macros/s/AKfy.../exec" required></div><div class="actions"><button type="submit">保存して本番アプリを開く ↗</button></div><p class="error" role="alert" id="error"></p><p class="small">URLはこの端末のブラウザに保存されます。スマホなど別端末では初回だけ入力が必要です。Googleアカウントによるログイン・権限設定はGAS側で行います。</p></form>
+</section><section class="panel" style="margin-top:16px"><h2>最初の接続手順</h2><ol><li>既存ライフログのスプレッドシートをバックアップする</li><li>付属の <strong>Code.gs</strong> と <strong>Index.html</strong> をGASへ設置する</li><li>GASを<strong>自分として実行・アクセスは自分のみ</strong>でウェブアプリ公開する</li><li>発行された <code>/exec</code> URLを上の欄へ貼り付ける</li></ol><p class="small">公開GitHubにGASのコードや写真をアップロードしないでください。Googleアカウントの認証情報やパスワードはここへ入力しないでください。</p></section><footer>Yorimichi LifeLog — Production Launcher v1.0.4</footer></main>
+<script>
+(()=>{'use strict';
+// GASのURLを公開リポジトリに直接貼らず、各自の端末で設定する方式。
+const KEY='yorimichi-gas-webapp-url-v1';
+const $=id=>document.getElementById(id);
+const isValid=u=>{try{const x=new URL(u);return x.protocol==='https:'&&x.hostname==='script.google.com'&&/^\/macros\/s\/[^/]+\/exec\/?$/.test(x.pathname)&&!x.search&&!x.hash;}catch(_){return false;}};
+const saved=()=>{try{return localStorage.getItem(KEY)||''}catch(_){return ''}};
+const save=u=>{try{localStorage.setItem(KEY,u);return true}catch(_){return false}};
+const go=u=>{if(isValid(u))location.assign(u);else $('error').textContent='GAS URLの形式が正しくありません。末尾が /exec のURLを使ってください。';};
+function view(){const u=saved(),ok=isValid(u);$('status').textContent=ok?'接続先を保存済み。Googleアカウントで本番版を開きます。':'GASウェブアプリのURLが未設定です';$('openOnly').style.display=ok?'grid':'none';$('setup').classList.toggle('hidden',ok);if(ok)$('gasUrl').value=u;}
+$('setup').addEventListener('submit',e=>{e.preventDefault();const u=$('gasUrl').value.trim();if(!isValid(u)){$('error').textContent='GAS URLが違います。/exec で終わるデプロイURLを入力してください。';return;}if(!save(u)){$('error').textContent='このブラウザはURL設定を保存できません。';return;}go(u);});
+$('openBtn').addEventListener('click',()=>go(saved()));
+$('changeBtn').addEventListener('click',()=>{$('openOnly').style.display='none';$('setup').classList.remove('hidden');$('gasUrl').focus();});
+view();
+})();
+</script></body></html>
