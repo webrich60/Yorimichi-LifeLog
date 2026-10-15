@@ -1,5 +1,5 @@
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js';
-import {getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged,setPersistence,browserLocalPersistence} from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js';
+import {getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged,setPersistence,indexedDBLocalPersistence,browserSessionPersistence,inMemoryPersistence} from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js';
 import {getFirestore,collection,doc,getDoc,getDocs,onSnapshot,query,orderBy,setDoc,writeBatch,serverTimestamp} from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
 
 // FirebaseのWeb設定は公開用識別情報。データの保護は必ず firestore.rules で実施します。
@@ -24,7 +24,45 @@ const dateSort=(arr,which='date',dir='new')=>[...arr].sort((a,b)=>dir==='new'?St
 const categoriesWithHistory=()=>{const cats=structuredClone(state.categories);for(const item of [...state.logs,...state.wishes]){const maj=item.major||'その他',min=item.minor||'';if(!cats[maj])cats[maj]=[];if(min&&!cats[maj].includes(min))cats[maj].push(min)}return cats};
 function optionList(select,items,first=''){const current=select.value;select.replaceChildren();if(first){select.add(new Option(first,''))}items.forEach(x=>select.add(new Option(x,x)));if([...select.options].some(x=>x.value===current))select.value=current}
 function resetLogin(){state.user=null;state.logs=[];state.wishes=[];state.photoCache.clear();state.loaded={logs:false,wishes:false};for(const un of state.unsubs)try{un()}catch(_){}state.unsubs=[];$('loginPage').classList.remove('hidden');$('appPage').classList.add('hidden');$('bottomNav').classList.add('hidden');$('account').classList.add('hidden')}
-$('login').addEventListener('click',async()=>{try{$('loginError').textContent='ログイン中…';await setPersistence(auth,browserLocalPersistence);await signInWithPopup(auth,provider)}catch(e){$('loginError').textContent=friendlyErr(e)}});
+// Firebase Auth の localStorage 容量超過に備える。既存の他アプリの端末データは削除しない。
+// 第1候補: IndexedDB（ブラウザ終了後もログイン状態を保持）
+// 第2候補: sessionStorage（タブを閉じるまで保持）
+// 第3候補: メモリ（一時的なログイン）
+const isAuthStorageError=e=>/setItem|quota|storage|indexeddb|exceeded|persist|保存容量/i.test([e?.message,e?.code].join(' '));
+const authPersistenceCandidates=[
+  {name:'IndexedDB',value:indexedDBLocalPersistence},
+  {name:'sessionStorage',value:browserSessionPersistence},
+  {name:'一時メモリ',value:inMemoryPersistence}
+];
+$('login').addEventListener('click',async()=>{
+  const btn=$('login');
+  if(btn.disabled)return;
+  btn.disabled=true;
+  $('loginError').textContent='Googleログインを準備しています…';
+  let lastError;
+  try{
+    for(let i=0;i<authPersistenceCandidates.length;i++){
+      const candidate=authPersistenceCandidates[i];
+      try{
+        await setPersistence(auth,candidate.value);
+        $('loginError').textContent='Googleアカウントに接続しています…';
+        await signInWithPopup(auth,provider);
+        if(i>0)alertMsg('ログインできました。端末の保存容量の関係で、次回は再ログインが必要な場合があります。');
+        return;
+      }catch(e){
+        lastError=e;
+        // ストレージ関係以外（ログインの取り消し等）の場合は再試行しない。
+        if(!isAuthStorageError(e))break;
+        $('loginError').textContent='ブラウザの保存方法を切り替えています…';
+      }
+    }
+    $('loginError').textContent=isAuthStorageError(lastError)
+      ?'ブラウザにログイン情報を保存できませんでした。端末の空き容量やサイトデータの使用状況を確認してください。'
+      :friendlyErr(lastError);
+  }finally{
+    btn.disabled=false;
+  }
+});
 $('logout').addEventListener('click',()=>signOut(auth).catch(e=>alertMsg(friendlyErr(e),true)));
 onAuthStateChanged(auth,user=>{if(!user){resetLogin();return}if(user.email?.toLowerCase()!==OWNER_EMAIL){$('loginError').textContent='このGoogleアカウントは許可されていません。元のライフログ用アカウントを選んでください。';signOut(auth).catch(()=>{});return}state.user=user;$('loginPage').classList.add('hidden');$('appPage').classList.remove('hidden');$('bottomNav').classList.remove('hidden');$('account').classList.remove('hidden');$('emailBadge').textContent=user.email;connectData()});
 function connectData(){for(const unsub of state.unsubs)unsub();state.unsubs=[];state.loaded={logs:false,wishes:false};syncInfo('Firestore接続中…');state.unsubs.push(onSnapshot(collection(db,'logs'),snap=>{state.logs=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted);state.loaded.logs=true;dataUpdated()},err=>syncInfo('思い出取得エラー: '+friendlyErr(err))));state.unsubs.push(onSnapshot(collection(db,'wishes'),snap=>{state.wishes=snap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>!x.deleted);state.loaded.wishes=true;dataUpdated()},err=>syncInfo('行きたい場所取得エラー: '+friendlyErr(err))));state.unsubs.push(onSnapshot(doc(db,'settings','categories'),snap=>{if(snap.exists()&&snap.data().majors)state.categories=snap.data().majors;refreshCategoryUi();render()},err=>syncInfo('カテゴリ取得エラー: '+friendlyErr(err))));state.unsubs.push(onSnapshot(doc(db,'media','header'),snap=>{state.media=snap.exists()?snap.data().dataUrl||null:null;applyHeader();},err=>alertMsg('ヘッダー画像: '+friendlyErr(err),true)))}
