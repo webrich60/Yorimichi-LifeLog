@@ -3,7 +3,7 @@ import {getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged,se
 import {getFirestore,collection,doc,getDoc,getDocs,onSnapshot,query,orderBy,setDoc,writeBatch,serverTimestamp} from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
 
 // FirebaseのWeb設定は公開用識別情報。データの保護は必ず firestore.rules で実施します。
-const firebaseConfig={apiKey:'AIzaSyAPYQt1vLtcjwn6JKyeP-YGviWQGi9Glc',authDomain:'yorimichi-lifelog.firebaseapp.com',projectId:'yorimichi-lifelog',storageBucket:'yorimichi-lifelog.firebasestorage.app',messagingSenderId:'756920621415',appId:'1:756920621415:web:7e486f5e3a31abd25037c2'};
+const firebaseConfig={apiKey:'AIzaSyAPYQt1vLtcjwn6JKyeP-YGviwUGQi9Glc',authDomain:'yorimichi-lifelog.firebaseapp.com',projectId:'yorimichi-lifelog',storageBucket:'yorimichi-lifelog.firebasestorage.app',messagingSenderId:'756920621415',appId:'1:756920621415:web:7e486f5e3a31abd25037c2'};
 const OWNER_EMAIL='webrich60@gmail.com';
 const app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);
 const provider=new GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});
