@@ -405,34 +405,79 @@ $('fieldMajor').addEventListener('change',updateMinor);
 function showDialog(d){d.showModal();d.scrollTop=0}
 function edit(kind,id=''){const item=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);if(id&&!item){alertMsg('編集対象が見つかりません。再読み込みしてください。',true);return}$('editForm').reset();clearLocationCandidates();$('editKind').value=kind;$('editId').value=id;$('dialogTitle').textContent=id?'記録を編集':kind==='log'?'思い出を記録':'行きたい場所を登録';$('fieldTitle').value=item?.title||'';$('fieldDate').value=item?.date||item?.planDate||today();$('fieldPlace').value=item?.place||'';$('fieldNote').value=item?.note||item?.reason||'';$('fieldLat').value=item?.lat??'';$('fieldLng').value=item?.lng??'';$('fieldGroup').value=item?.groupName||'';$('fieldTrip').value=item?.tripStyle||'未定';$('fieldStatus').value=item?.status||'wish';$('statusArea').classList.toggle('hidden',kind==='log');$('fieldGroup').closest('label').classList.toggle('hidden',kind==='wish');refreshCategoryUi();$('fieldMajor').value=item?.major||Object.keys(state.categories)[0]||'外食・グルメ';updateMinor();$('fieldMinor').value=item?.minor||'';$('editError').textContent='';$('photoPending').textContent='写真を追加すると保存時に自動圧縮します。';$('saveButton').textContent=item?'変更を保存':'保存する';$('editDelete').classList.toggle('hidden',!item);$('editDelete').dataset.trashKind=kind;$('editDelete').dataset.trashId=item?.id||'';showDialog($('editDialog'))}
 async function photoData(file,maxSide=1200,quality=.7){const img=await createImageBitmap(file);try{const scale=Math.min(1,maxSide/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',quality)}finally{img.close()}}
-// v2.0.12: 住所を地図座標へ変換するのはユーザーが押した場合のみ。
-// OpenStreetMap Nominatimを検索1回のタイミングだけ利用し、候補をユーザーが確認して選択する。
-// 異なる候補・曖昧な住所を自動確定して誤ったピンを立てない。
+// v2.0.14: 日本の住所に多い郵便番号・空白・ビル名などで検索が失敗しても
+// 地図を直接選んで登録できる。検索サービスの候補は必ず本人が選ぶ。
 let lastGeoRequestAt=0;
 let locationSearching=false;
+let locationPickerMap=null;
+let locationPickerMarker=null;
+let locationPickerPoint=null;
 function clearLocationCandidates(){
   $('locationCandidates').replaceChildren();
   $('locationLookupInfo').textContent='';
 }
+function normalizedAddress(value){
+  return String(value||'').normalize('NFKC')
+    .replace(/(?:〒\s*)?\d{3}\s*[-‐‑‒–—―ー－]?\s*\d{4}/g,'')
+    .replace(/^(?:日本|Japan)[、,\s]*/i,'')
+    .replace(/[\u3000\s]+/g,' ').trim();
+}
+function addressSearchVariants(raw,name){
+  const base=normalizedAddress(raw),variants=[];
+  const add=t=>{t=String(t||'').trim();if(t&&!variants.includes(t))variants.push(t)};
+  if(base){
+    add(base);
+    const simple=base.replace(/(?:\s*[,，].*)$/,'').replace(/(?:\s*(?:ホテル|ビル|階|フロア).*\s*)$/,'').trim();
+    // 住所がビル名等を含む場合は都道府県・市町村までを残して再検索する。
+    if(simple!==base)add(simple);
+    const jpCompact=base.replace(/[\s　]+/g,'');
+    if(jpCompact!==base)add(jpCompact);
+  }
+  if(name){
+    const pref=base.match(/(?:東京都|北海道|(?:京都|大阪)府|.{2,3}県)[^市区町村郡]*[市区町村郡]?/);
+    add((pref?.[0]?pref[0]+' ':'')+name);
+  }
+  return variants.slice(0,3);
+}
+async function nominatimSearch(q){
+  const pause=Math.max(0,1150-(Date.now()-lastGeoRequestAt));
+  if(pause)await new Promise(resolve=>setTimeout(resolve,pause));
+  const params=new URLSearchParams({q,format:'jsonv2',limit:'5',addressdetails:'1','accept-language':'ja'});
+  lastGeoRequestAt=Date.now();
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),11000);
+  try{
+    const response=await fetch('https://nominatim.openstreetmap.org/search?'+params.toString(),{
+      headers:{Accept:'application/json'},referrerPolicy:'strict-origin-when-cross-origin',signal:ctrl.signal
+    });
+    if(!response.ok)throw Error('検索サービスの応答 '+response.status);
+    const result=await response.json();return Array.isArray(result)?result:[];
+  }finally{clearTimeout(timer)}
+}
+function setCandidateCoordinates(lat,lng,message){
+  if(!validCoord(lat,lng))return;
+  $('fieldLat').value=String(Number(lat));$('fieldLng').value=String(Number(lng));
+  $('locationLookupInfo').textContent=message||'✓ 位置を選択しました。最後に「変更を保存」を押してください。';
+}
 async function lookupAddressCoordinates(){
   if(locationSearching)return;
-  const raw=$('fieldPlace').value.trim();
-  const name=$('fieldTitle').value.trim();
-  if(!raw&&!name){$('locationLookupInfo').textContent='先に住所や場所の名前を入力してください。';return;}
-  const queryText=raw||name;
-  const btn=$('lookupLocation');
-  clearLocationCandidates();
+  const raw=$('fieldPlace').value.trim(),name=$('fieldTitle').value.trim();
+  if(!raw&&!name){$('locationLookupInfo').textContent='住所か施設名を入力してください。';return}
+  const btn=$('lookupLocation');clearLocationCandidates();
   btn.disabled=true;locationSearching=true;
   try{
-    const pause=Math.max(0,1100-(Date.now()-lastGeoRequestAt));
-    if(pause)await new Promise(resolve=>setTimeout(resolve,pause));
-    const params=new URLSearchParams({q:queryText,format:'jsonv2',limit:'5',addressdetails:'1','accept-language':'ja'});
-    lastGeoRequestAt=Date.now();
-    const response=await fetch('https://nominatim.openstreetmap.org/search?'+params.toString(),{headers:{Accept:'application/json'},referrerPolicy:'strict-origin-when-cross-origin'});
-    if(!response.ok)throw Error('検索サービスに接続できません（'+response.status+'）。時間をおいて再試行してください。');
-    const places=await response.json();
-    if(!Array.isArray(places)||!places.length){$('locationLookupInfo').textContent='位置が見つかりません。都道府県・市区町村を含めて住所を入力し直すか、地図をタップして位置を指定してください。';return;}
-    $('locationLookupInfo').textContent=`候補${places.length}件。正しい場所を選んでください。選択しても「保存する」を押すまで記録は変更されません。`;
+    const searches=addressSearchVariants(raw,name);
+    let places=[];
+    for(let index=0;index<searches.length;index++){
+      $('locationLookupInfo').textContent=`位置を検索中…（${index+1}/${searches.length}）`;
+      places=await nominatimSearch(searches[index]);
+      if(places.length)break;
+    }
+    if(!places.length){
+      $('locationLookupInfo').textContent='住所では見つかりませんでした。下の「地図から位置を選ぶ」で、目的地を直接指定できます。';
+      return;
+    }
+    $('locationLookupInfo').textContent=`候補${places.length}件。正しい位置を選んでから保存してください。`; 
     for(const item of places){
       const lat=Number(item.lat),lng=Number(item.lon);
       if(!validCoord(lat,lng))continue;
@@ -441,27 +486,88 @@ async function lookupAddressCoordinates(){
       const coordinates=document.createElement('small');coordinates.textContent=lat.toFixed(5)+', '+lng.toFixed(5);
       candidate.append(label,coordinates);
       candidate.addEventListener('click',()=>{
-        $('fieldLat').value=String(lat);$('fieldLng').value=String(lng);
+        setCandidateCoordinates(lat,lng,'✓ 地図の位置を選択しました。「変更を保存」でピン登録完了です。');
         $('locationCandidates').querySelectorAll('button').forEach(el=>el.classList.toggle('selected',el===candidate));
-        $('locationLookupInfo').textContent='✓ 地図の位置を選択しました。「保存する」で確定してください。';
       });
       $('locationCandidates').append(candidate);
     }
   }catch(e){
-    $('locationLookupInfo').textContent='検索に失敗しました: '+friendlyErr(e);
-  }finally{btn.disabled=false;locationSearching=false;}
+    $('locationLookupInfo').textContent='住所検索が利用できません。下の「地図から位置を選ぶ」をお使いください。('+friendlyErr(e)+')';
+  }finally{btn.disabled=false;locationSearching=false}
 }
 $('lookupLocation').addEventListener('click',lookupAddressCoordinates);
-// 古い場所を編集するとき前の検索結果を残さない。
+// 住所検索で見つからない場合の代替：OpenStreetMap の地図上で直接ピンを選択。
+async function openLocationPicker(){
+  const dlg=$('locationPickerDialog');
+  locationPickerPoint=null;
+  $('locationPickerConfirm').disabled=true;
+  $('locationPickerInfo').textContent='地図を拡大して目的地をタップしてください。まだ記録は変更されません。';
+  dlg.showModal();
+  try{
+    await loadLeaflet();
+    if(!locationPickerMap){
+      locationPickerMap=window.L.map('locationPickerMap');
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+        attribution:'© OpenStreetMap contributors',maxZoom:19
+      }).addTo(locationPickerMap);
+      locationPickerMap.on('click',e=>{
+        locationPickerPoint={lat:e.latlng.lat,lng:e.latlng.lng};
+        if(locationPickerMarker)locationPickerMarker.setLatLng(e.latlng);
+        else locationPickerMarker=window.L.marker(e.latlng).addTo(locationPickerMap);
+        $('locationPickerInfo').textContent=`選択位置：${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}。正しければ「この位置を使う」を押してください。`;
+        $('locationPickerConfirm').disabled=false;
+      });
+    }
+    const lat=Number($('fieldLat').value),lng=Number($('fieldLng').value);
+    if($('fieldLat').value!==''&&$('fieldLng').value!==''&&validCoord(lat,lng)){
+      locationPickerMap.setView([lat,lng],14);
+      locationPickerPoint={lat,lng};
+      if(locationPickerMarker)locationPickerMarker.setLatLng([lat,lng]);
+      else locationPickerMarker=window.L.marker([lat,lng]).addTo(locationPickerMap);
+      $('locationPickerConfirm').disabled=false;
+    }else locationPickerMap.setView([36.2,137.4],5);
+    // 初回はモーダル確定後にサイズを計測する必要がある。
+    setTimeout(()=>locationPickerMap?.invalidateSize(),160);
+  }catch(e){$('locationPickerInfo').textContent='地図を読み込めませんでした。通信を確認してください: '+friendlyErr(e)}
+}
+$('locationPickerOpen').addEventListener('click',openLocationPicker);
+$('locationPickerConfirm').addEventListener('click',()=>{
+  if(!locationPickerPoint)return;
+  setCandidateCoordinates(locationPickerPoint.lat,locationPickerPoint.lng,'✓ 地図で位置を選択しました。「変更を保存」を押すとピンが登録されます。');
+  $('locationPickerDialog').close();
+});
+$('locationPickerCancel').addEventListener('click',()=>$('locationPickerDialog').close());
+$('locationPickerGoogle').addEventListener('click',()=>{
+  const q=$('fieldPlace').value.trim()||$('fieldTitle').value.trim();
+  window.open(mapsUrl(q),'_blank','noopener,noreferrer');
+});
+// 住所の編集では既存のピンを消さない。新しい位置を選ぶまで元の座標を保持する。
 $('fieldPlace').addEventListener('input',()=>{
   clearLocationCandidates();
-  // 住所を変更したら古い座標のまま保存しないよう除外する。
-  $('fieldLat').value='';$('fieldLng').value='';
-  $('locationLookupInfo').textContent='住所を変更したため前の地図座標を解除しました。新しい住所で位置検索してください。';
+  $('locationLookupInfo').textContent=($('fieldLat').value!==''&&$('fieldLng').value!=='')
+    ?'住所が変わりました。既存の地図ピンは保持しています。場所が変わる場合は検索または地図から新しい位置を選んでください。'
+    :'住所が変わりました。「住所から地図位置を探す」か「地図から位置を選ぶ」で登録してください。';
 });
 
 async function saveEdit(e){e.preventDefault();const kind=$('editKind').value,id=$('editId').value||uniqueId();const title=$('fieldTitle').value.trim();if(!title){$('editError').textContent='名前を入力してください';return}const old=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id)||{};const lat=$('fieldLat').value,lng=$('fieldLng').value;if((lat||lng)&&!validCoord(lat,lng)){$('editError').textContent='緯度・経度が正しくありません';return}const base={...old,id,title,major:$('fieldMajor').value,minor:$('fieldMinor').value,tripStyle:$('fieldTrip').value,place:$('fieldPlace').value.trim(),note:$('fieldNote').value.trim(),lat:lat===''?null:Number(lat),lng:lng===''?null:Number(lng),groupName:$('fieldGroup').value.trim(),updatedAt:now(),createdAt:old.createdAt||now(),photos:[...(old.photos||[])]};if(kind==='log')base.date=$('fieldDate').value||today();else {base.planDate=$('fieldDate').value;base.status=$('fieldStatus').value;base.reason=base.note;if(base.status==='visited'&&!base.visitDate)base.visitDate=today()}
-const button=$('saveButton');button.disabled=true;button.textContent='保存中…';$('editError').textContent='';try{const f=[...$('fieldPhotos').files];if(f.length>10)throw new Error('一度に追加できる写真は10枚までです');for(const file of f){let dataUrl=await photoData(file,1300,.72);if(dataUrl.length>680000)dataUrl=await photoData(file,1000,.55);if(dataUrl.length>780000)throw new Error('画像を小さくできませんでした');const photoId=uniqueId();await setDoc(doc(db,'photos',photoId),{id:photoId,ownerId:id,kind,dataUrl,createdAt:now()});base.photos.push({type:'firestore',id:photoId,ref:photoId});cardThumbnailCache.delete(id)}await setDoc(doc(db,kind==='log'?'logs':'wishes',id),base);$('editDialog').close();alertMsg(validCoord(base.lat,base.lng)?'✓ 保存しました。地図ピンにも反映されます。':'✓ 保存しました。地図ピンは住所から位置を検索すると表示されます。')}catch(ex){$('editError').textContent='保存できません: '+friendlyErr(ex);alertMsg('保存エラー',true)}finally{button.disabled=false;button.textContent='保存する'}}
+const hadPin=validCoord(old.lat,old.lng);
+const willHavePin=validCoord(base.lat,base.lng);
+const locationChanged=willHavePin&&(!hadPin||Number(old.lat)!==Number(base.lat)||Number(old.lng)!==Number(base.lng));
+const button=$('saveButton');button.disabled=true;button.textContent='保存中…';$('editError').textContent='';try{const f=[...$('fieldPhotos').files];if(f.length>10)throw new Error('一度に追加できる写真は10枚までです');for(const file of f){let dataUrl=await photoData(file,1300,.72);if(dataUrl.length>680000)dataUrl=await photoData(file,1000,.55);if(dataUrl.length>780000)throw new Error('画像を小さくできませんでした');const photoId=uniqueId();await setDoc(doc(db,'photos',photoId),{id:photoId,ownerId:id,kind,dataUrl,createdAt:now()});base.photos.push({type:'firestore',id:photoId,ref:photoId});cardThumbnailCache.delete(id)}await setDoc(doc(db,kind==='log'?'logs':'wishes',id),base);
+// Firestoreの書き込み成功後だけ画面の座標を更新。既存データは上書きしない。
+const inMemory=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);
+if(inMemory)Object.assign(inMemory,base);
+$('editDialog').close();
+render(); // ピンと「未登録一覧」の件数を即時更新する
+if(willHavePin&&locationChanged){
+  const count=[...state.logs,...state.wishes].filter(x=>!validCoord(x.lat,x.lng)).length;
+  $('mapRegistrationNotice').textContent=`✓「${title}」の位置を登録しました。地図ピンに反映済み。未登録：残り${count}件。`;
+  $('mapRegistrationNotice').classList.remove('hidden');
+  // 位置保存後に該当ピンへ視点を移すと、マップ上でも登録が確認しやすい。
+  if(state.tab==='map'&&state.map)state.map.setView([Number(base.lat),Number(base.lng)],13);
+  alertMsg('✓ 地図に登録しました。未登録一覧から自動で除外されました。');
+}else if(willHavePin) alertMsg('✓ 記録を保存しました。登録済みの地図ピンは維持されています。');
+else alertMsg('✓ 記録を保存しました。地図ピンはまだ未登録です。');}catch(ex){$('editError').textContent='保存できません: '+friendlyErr(ex);alertMsg('保存エラー',true)}finally{button.disabled=false;button.textContent='保存する'}}
 $('editForm').addEventListener('submit',saveEdit);$('fieldPhotos').addEventListener('change',()=>{$('photoPending').textContent=[...$('fieldPhotos').files].map(f=>f.name).join('、')||'写真を追加できます'});
 async function stampWish(id){
   const x=state.wishes.find(w=>w.id===id);
@@ -675,7 +781,7 @@ function renderUnpinnedPlaces(){
     const strong=document.createElement('strong');strong.textContent=x.title||'名称なし';
     const small=document.createElement('small');small.textContent=(x._kind==='wish'?'行きたい場所':'思い出')+' ｜ '+(x.place||'住所未登録');
     name.append(strong,small);
-    const btn=document.createElement('button');btn.className='ghost slim';btn.type='button';btn.textContent='位置を登録';
+    const btn=document.createElement('button');btn.className='ghost slim';btn.type='button';btn.textContent='位置を登録';btn.setAttribute('aria-label',`${x.title||'記録'}の地図位置を登録する`);
     btn.addEventListener('click',()=>edit(x._kind,x.id));
     row.append(name,btn);fragment.append(row);
   }

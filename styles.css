@@ -373,3 +373,12 @@
    タイトルの可読性は文字自体の影で保ち、画像を暗くしない。 */
 .hero-photo.has-photo::before{display:none}
 .hero-photo.has-photo .hero-overlay{text-shadow:0 1px 3px rgba(0,0,0,.92),0 2px 12px rgba(0,0,0,.75)}
+
+/* v2.0.14 住所検索失敗時の地図指定・保存済みフィードバック */
+.place-lookup{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.place-lookup .muted{flex:1 1 220px}
+.map-picker-dialog{width:min(94vw,820px);padding:18px;max-height:min(94dvh,950px)}
+#locationPickerMap{height:min(58dvh,510px);width:100%;border:2px solid #b5d0d9;border-radius:14px;background:#e7f1f3;z-index:0}
+#locationPickerInfo{font-weight:750;margin:12px 0 5px;min-height:24px}
+.map-registration-notice{background:#e0f7ea;border:2px solid #31856b;color:#124b3e;border-radius:11px;padding:12px;font-weight:850;margin:10px 0}
+@media(max-width:650px){.map-picker-dialog{padding:12px}.place-lookup button{width:100%}#locationPickerMap{height:53dvh}.map-picker-dialog .actions button{flex:1 1 180px}}
