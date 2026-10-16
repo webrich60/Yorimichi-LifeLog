@@ -292,3 +292,30 @@
 @media(max-width:355px){.memory-tile-feature{min-height:190px}}
 /* アイコン付きの写真拡大ラベルをカード右上に小さく表示。 */
 .memory-tile .record-cover-label{left:auto;right:9px;width:auto;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;box-shadow:0 2px 7px #102d3c33}
+
+/* v2.0.10: ホームから編集・安全なゴミ箱へ移動。従来の写真レイアウトは維持。 */
+.memory-manage-actions{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:4px;position:relative;z-index:4;pointer-events:auto}
+.memory-manage-actions button{border:1px solid #bdd8df;background:#ecf5f6;color:#125b69;min-height:36px;border-radius:10px;padding:6px 10px;font-size:.76rem;font-weight:850;cursor:pointer}
+.memory-tile-feature .memory-manage-actions button{background:#ffffffed;color:#184659;border-color:#cbdfe5}
+.memory-tile-feature .memory-manage-actions .danger-quiet{background:#fff1eb;color:#8f3c30;border-color:#f0c5b7}
+.memory-manage-actions button:hover,.memory-manage-actions button:focus-visible{outline:2px solid #278a91;outline-offset:1px}
+.danger-quiet{color:#913e37!important;background:#fff4f0!important;border-color:#eac4b8!important;font-weight:850}
+.danger-quiet:hover{background:#ffe5de!important}
+.edit-bottom-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:9px}
+.edit-actions-spacer{flex:1 1 10px}
+.visit-bottom-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding-top:12px;border-top:1px solid #cbdfe5}
+.trash-count{display:inline-block;border-radius:20px;padding:2px 8px;background:#e1eff3;color:#275a6b;font-size:.76rem;vertical-align:middle}
+.trash-list{display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto}
+.trash-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #cbdfe5;border-radius:12px;padding:9px 10px;background:#f7fbfc}
+.trash-record{min-width:0;display:flex;flex-direction:column;gap:3px}
+.trash-record strong{color:#173e58;font-size:.89rem;overflow-wrap:anywhere}
+.trash-record small{color:#5e7789;font-size:.72rem}
+.trash-row button{white-space:nowrap;flex-shrink:0}
+@media(max-width:650px){
+ .memory-manage-actions{gap:5px;margin-top:6px}
+ .memory-manage-actions button{font-size:.72rem;min-height:34px;padding:5px 8px}
+ .memory-tile-feature .memory-manage-actions button{font-size:.75rem}
+ .edit-bottom-actions button,.visit-bottom-actions button{min-height:40px}
+ .trash-row{padding:9px 7px;gap:6px}
+ .trash-record strong{font-size:.8rem}
+}
