@@ -69,7 +69,7 @@ function connectData(){for(const unsub of state.unsubs)unsub();state.unsubs=[];s
 function dataUpdated(){syncInfo(state.loaded.logs&&state.loaded.wishes?'● 本番接続済み・自動保存有効':'データを同期しています…');refreshCategoryUi();render()}
 const navButtons=[...document.querySelectorAll('[data-tab]')];function showTab(tab){state.tab=tab;document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hidden',el.id!==tab));document.querySelectorAll('.bottom-nav button').forEach(btn=>btn.classList.toggle('active',btn.dataset.tab===tab));render();if(tab==='map')loadMap().catch(e=>{$('mapHint').textContent='地図読み込みに失敗しました: '+friendlyErr(e)})}
 navButtons.forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
-function render(){if(!state.user)return;const logs=state.logs,wishes=state.wishes;$('statLogs').textContent=logs.length;$('statWishes').textContent=wishes.filter(x=>x.status!=='visited').length;$('statStamps').textContent=wishes.filter(x=>x.status==='visited').length;$('statPins').textContent=[...logs,...wishes].filter(x=>validCoord(x.lat,x.lng)).length;renderHome();if(state.tab==='logs')renderLogs();if(state.tab==='calendar')renderMemoryCalendar();if(state.tab==='wishes')renderWishes();if(state.tab==='settings'){renderCategories();renderTrash()}if(state.tab==='map'&&state.map)renderMapPins()}
+function render(){if(!state.user)return;const logs=state.logs,wishes=state.wishes;$('statLogs').textContent=logs.length;$('statWishes').textContent=wishes.filter(x=>x.status!=='visited').length;$('statStamps').textContent=wishes.filter(x=>x.status==='visited').length;$('statPins').textContent=[...logs,...wishes].filter(x=>validCoord(x.lat,x.lng)).length;renderHome();if(state.tab==='logs')renderLogs();if(state.tab==='calendar')renderMemoryCalendar();if(state.tab==='wishes')renderWishes();if(state.tab==='settings'){renderCategories();renderTrash()}if(state.tab==='map'){if(state.map)renderMapPins();renderUnpinnedPlaces();}}
 // 写真付き思い出カード：写真がない記録は中立的なアイコンを表示する。
 // ※ 見た目の改善のみ。写真・記録・ピンの内容は更新しない。
 function thumbButton(x,compact=false){
@@ -153,7 +153,27 @@ function scheduleCardThumbnails(container){
     else void fillThumbnail(el);
   }
 }
-function cardWish(x){return `<article class="entry card"><div><div class="entry-meta">${esc(x.major||'行きたい')} ${x.minor?' / '+esc(x.minor):''}</div><div class="entry-title">${esc(x.title)}</div><span class="pill ${x.status==='visited'?'visited':'wish'}">${x.status==='visited'?'✓ 行った！':x.status==='planning'?'計画中':'行きたい'}</span>${x.place?`<a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer" class="entry-meta">📍 ${esc(x.place)} ↗</a>`:''}<div class="entry-actions">${x.status!=='visited'?`<button class="primary slim" data-stamp="${esc(x.id)}">✓ 行った！</button>`:''}<button class="ghost slim" data-edit-wish="${esc(x.id)}">編集</button><button class="ghost slim danger-quiet" data-delete-wish="${esc(x.id)}">削除</button></div></div></article>`}
+// v2.0.12: 未訪問の「行きたい」を濃い文字で、訪問操作は淡色に区別。
+// status値やFirebaseの保存形式は変更しない。
+function cardWish(x){
+  const visited=x.status==='visited';
+  const planning=x.status==='planning';
+  const stateLabel=visited?'✓ 訪問済み':planning?'計画中・未訪問':'行きたい';
+  const when=visited&&x.visitDate?`<span class="wish-visit-date">訪問日 ${esc(dateText(x.visitDate))}</span>`:'';
+  return `<article class="entry card wish-entry ${visited?'wish-entry-visited':'wish-entry-pending'}">
+    <div>
+      <div class="entry-meta">${esc(x.major||'行きたい')} ${x.minor?' / '+esc(x.minor):''}</div>
+      <div class="entry-title">${esc(x.title)}</div>
+      <div class="wish-status-row"><span class="wish-status ${visited?'wish-status-visited':'wish-status-pending'}">${stateLabel}</span>${visited?when:'<span class="wish-not-visited">未訪問</span>'}</div>
+      ${x.place?`<a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer" class="entry-meta">📍 ${esc(x.place)} ↗</a>`:''}
+      <div class="entry-actions">
+        ${visited?'':`<button type="button" class="ghost slim wish-mark-visit" data-stamp="${esc(x.id)}" aria-label="${esc(x.title)}に実際に行ったことを記録する">行った場合に記録する</button>`}
+        <button type="button" class="ghost slim" data-edit-wish="${esc(x.id)}">編集</button>
+        <button type="button" class="ghost slim danger-quiet" data-delete-wish="${esc(x.id)}">削除</button>
+      </div>
+    </div>
+  </article>`;
+}
 const empty=t=>`<div class="card" style="padding:24px;text-align:center;color:#668292">${esc(t)}</div>`;
 function homePlaceKey(log){
   // 同じ場所への複数回訪問はホームでは1枚にまとめる。アルバムは全記録を表示。
@@ -383,12 +403,75 @@ function refreshCategoryUi(){refreshLogFilterUi();const majors=Object.keys(categ
 function updateMinor(){const arr=categoriesWithHistory()[$('fieldMajor').value]||[];optionList($('fieldMinor'),arr,'選択なし')}
 $('fieldMajor').addEventListener('change',updateMinor);
 function showDialog(d){d.showModal();d.scrollTop=0}
-function edit(kind,id=''){const item=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);if(id&&!item){alertMsg('編集対象が見つかりません。再読み込みしてください。',true);return}$('editForm').reset();$('editKind').value=kind;$('editId').value=id;$('dialogTitle').textContent=id?'記録を編集':kind==='log'?'思い出を記録':'行きたい場所を登録';$('fieldTitle').value=item?.title||'';$('fieldDate').value=item?.date||item?.planDate||today();$('fieldPlace').value=item?.place||'';$('fieldNote').value=item?.note||item?.reason||'';$('fieldLat').value=item?.lat??'';$('fieldLng').value=item?.lng??'';$('fieldGroup').value=item?.groupName||'';$('fieldTrip').value=item?.tripStyle||'未定';$('fieldStatus').value=item?.status||'wish';$('statusArea').classList.toggle('hidden',kind==='log');$('fieldGroup').closest('label').classList.toggle('hidden',kind==='wish');refreshCategoryUi();$('fieldMajor').value=item?.major||Object.keys(state.categories)[0]||'外食・グルメ';updateMinor();$('fieldMinor').value=item?.minor||'';$('editError').textContent='';$('photoPending').textContent='写真を追加すると保存時に自動圧縮します。';$('saveButton').textContent=item?'変更を保存':'保存する';$('editDelete').classList.toggle('hidden',!item);$('editDelete').dataset.trashKind=kind;$('editDelete').dataset.trashId=item?.id||'';showDialog($('editDialog'))}
+function edit(kind,id=''){const item=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);if(id&&!item){alertMsg('編集対象が見つかりません。再読み込みしてください。',true);return}$('editForm').reset();clearLocationCandidates();$('editKind').value=kind;$('editId').value=id;$('dialogTitle').textContent=id?'記録を編集':kind==='log'?'思い出を記録':'行きたい場所を登録';$('fieldTitle').value=item?.title||'';$('fieldDate').value=item?.date||item?.planDate||today();$('fieldPlace').value=item?.place||'';$('fieldNote').value=item?.note||item?.reason||'';$('fieldLat').value=item?.lat??'';$('fieldLng').value=item?.lng??'';$('fieldGroup').value=item?.groupName||'';$('fieldTrip').value=item?.tripStyle||'未定';$('fieldStatus').value=item?.status||'wish';$('statusArea').classList.toggle('hidden',kind==='log');$('fieldGroup').closest('label').classList.toggle('hidden',kind==='wish');refreshCategoryUi();$('fieldMajor').value=item?.major||Object.keys(state.categories)[0]||'外食・グルメ';updateMinor();$('fieldMinor').value=item?.minor||'';$('editError').textContent='';$('photoPending').textContent='写真を追加すると保存時に自動圧縮します。';$('saveButton').textContent=item?'変更を保存':'保存する';$('editDelete').classList.toggle('hidden',!item);$('editDelete').dataset.trashKind=kind;$('editDelete').dataset.trashId=item?.id||'';showDialog($('editDialog'))}
 async function photoData(file,maxSide=1200,quality=.7){const img=await createImageBitmap(file);try{const scale=Math.min(1,maxSide/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',quality)}finally{img.close()}}
+// v2.0.12: 住所を地図座標へ変換するのはユーザーが押した場合のみ。
+// OpenStreetMap Nominatimを検索1回のタイミングだけ利用し、候補をユーザーが確認して選択する。
+// 異なる候補・曖昧な住所を自動確定して誤ったピンを立てない。
+let lastGeoRequestAt=0;
+let locationSearching=false;
+function clearLocationCandidates(){
+  $('locationCandidates').replaceChildren();
+  $('locationLookupInfo').textContent='';
+}
+async function lookupAddressCoordinates(){
+  if(locationSearching)return;
+  const raw=$('fieldPlace').value.trim();
+  const name=$('fieldTitle').value.trim();
+  if(!raw&&!name){$('locationLookupInfo').textContent='先に住所や場所の名前を入力してください。';return;}
+  const queryText=raw||name;
+  const btn=$('lookupLocation');
+  clearLocationCandidates();
+  btn.disabled=true;locationSearching=true;
+  try{
+    const pause=Math.max(0,1100-(Date.now()-lastGeoRequestAt));
+    if(pause)await new Promise(resolve=>setTimeout(resolve,pause));
+    const params=new URLSearchParams({q:queryText,format:'jsonv2',limit:'5',addressdetails:'1','accept-language':'ja'});
+    lastGeoRequestAt=Date.now();
+    const response=await fetch('https://nominatim.openstreetmap.org/search?'+params.toString(),{headers:{Accept:'application/json'},referrerPolicy:'strict-origin-when-cross-origin'});
+    if(!response.ok)throw Error('検索サービスに接続できません（'+response.status+'）。時間をおいて再試行してください。');
+    const places=await response.json();
+    if(!Array.isArray(places)||!places.length){$('locationLookupInfo').textContent='位置が見つかりません。都道府県・市区町村を含めて住所を入力し直すか、地図をタップして位置を指定してください。';return;}
+    $('locationLookupInfo').textContent=`候補${places.length}件。正しい場所を選んでください。選択しても「保存する」を押すまで記録は変更されません。`;
+    for(const item of places){
+      const lat=Number(item.lat),lng=Number(item.lon);
+      if(!validCoord(lat,lng))continue;
+      const candidate=document.createElement('button');candidate.type='button';candidate.className='location-candidate';
+      const label=document.createElement('span');label.textContent=String(item.display_name||'候補地点').slice(0,250);
+      const coordinates=document.createElement('small');coordinates.textContent=lat.toFixed(5)+', '+lng.toFixed(5);
+      candidate.append(label,coordinates);
+      candidate.addEventListener('click',()=>{
+        $('fieldLat').value=String(lat);$('fieldLng').value=String(lng);
+        $('locationCandidates').querySelectorAll('button').forEach(el=>el.classList.toggle('selected',el===candidate));
+        $('locationLookupInfo').textContent='✓ 地図の位置を選択しました。「保存する」で確定してください。';
+      });
+      $('locationCandidates').append(candidate);
+    }
+  }catch(e){
+    $('locationLookupInfo').textContent='検索に失敗しました: '+friendlyErr(e);
+  }finally{btn.disabled=false;locationSearching=false;}
+}
+$('lookupLocation').addEventListener('click',lookupAddressCoordinates);
+// 古い場所を編集するとき前の検索結果を残さない。
+$('fieldPlace').addEventListener('input',()=>{
+  clearLocationCandidates();
+  // 住所を変更したら古い座標のまま保存しないよう除外する。
+  $('fieldLat').value='';$('fieldLng').value='';
+  $('locationLookupInfo').textContent='住所を変更したため前の地図座標を解除しました。新しい住所で位置検索してください。';
+});
+
 async function saveEdit(e){e.preventDefault();const kind=$('editKind').value,id=$('editId').value||uniqueId();const title=$('fieldTitle').value.trim();if(!title){$('editError').textContent='名前を入力してください';return}const old=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id)||{};const lat=$('fieldLat').value,lng=$('fieldLng').value;if((lat||lng)&&!validCoord(lat,lng)){$('editError').textContent='緯度・経度が正しくありません';return}const base={...old,id,title,major:$('fieldMajor').value,minor:$('fieldMinor').value,tripStyle:$('fieldTrip').value,place:$('fieldPlace').value.trim(),note:$('fieldNote').value.trim(),lat:lat===''?null:Number(lat),lng:lng===''?null:Number(lng),groupName:$('fieldGroup').value.trim(),updatedAt:now(),createdAt:old.createdAt||now(),photos:[...(old.photos||[])]};if(kind==='log')base.date=$('fieldDate').value||today();else {base.planDate=$('fieldDate').value;base.status=$('fieldStatus').value;base.reason=base.note;if(base.status==='visited'&&!base.visitDate)base.visitDate=today()}
-const button=$('saveButton');button.disabled=true;button.textContent='保存中…';$('editError').textContent='';try{const f=[...$('fieldPhotos').files];if(f.length>10)throw new Error('一度に追加できる写真は10枚までです');for(const file of f){let dataUrl=await photoData(file,1300,.72);if(dataUrl.length>680000)dataUrl=await photoData(file,1000,.55);if(dataUrl.length>780000)throw new Error('画像を小さくできませんでした');const photoId=uniqueId();await setDoc(doc(db,'photos',photoId),{id:photoId,ownerId:id,kind,dataUrl,createdAt:now()});base.photos.push({type:'firestore',id:photoId,ref:photoId});cardThumbnailCache.delete(id)}await setDoc(doc(db,kind==='log'?'logs':'wishes',id),base);$('editDialog').close();alertMsg('✓ 保存しました。Firebaseに反映済み！')}catch(ex){$('editError').textContent='保存できません: '+friendlyErr(ex);alertMsg('保存エラー',true)}finally{button.disabled=false;button.textContent='保存する'}}
+const button=$('saveButton');button.disabled=true;button.textContent='保存中…';$('editError').textContent='';try{const f=[...$('fieldPhotos').files];if(f.length>10)throw new Error('一度に追加できる写真は10枚までです');for(const file of f){let dataUrl=await photoData(file,1300,.72);if(dataUrl.length>680000)dataUrl=await photoData(file,1000,.55);if(dataUrl.length>780000)throw new Error('画像を小さくできませんでした');const photoId=uniqueId();await setDoc(doc(db,'photos',photoId),{id:photoId,ownerId:id,kind,dataUrl,createdAt:now()});base.photos.push({type:'firestore',id:photoId,ref:photoId});cardThumbnailCache.delete(id)}await setDoc(doc(db,kind==='log'?'logs':'wishes',id),base);$('editDialog').close();alertMsg(validCoord(base.lat,base.lng)?'✓ 保存しました。地図ピンにも反映されます。':'✓ 保存しました。地図ピンは住所から位置を検索すると表示されます。')}catch(ex){$('editError').textContent='保存できません: '+friendlyErr(ex);alertMsg('保存エラー',true)}finally{button.disabled=false;button.textContent='保存する'}}
 $('editForm').addEventListener('submit',saveEdit);$('fieldPhotos').addEventListener('change',()=>{$('photoPending').textContent=[...$('fieldPhotos').files].map(f=>f.name).join('、')||'写真を追加できます'});
-async function stampWish(id){if(!confirm('「行った！」スタンプを押しますか？'))return;const x=state.wishes.find(w=>w.id===id);if(!x)return;try{await setDoc(doc(db,'wishes',id),{...x,status:'visited',visitDate:today(),updatedAt:now()});alertMsg('🎟️ 訪問スタンプを押しました！')}catch(e){alertMsg('保存できません: '+friendlyErr(e),true)}}
+async function stampWish(id){
+  const x=state.wishes.find(w=>w.id===id);
+  if(!x||x.status==='visited')return;
+  if(!confirm(`「${x.title}」には実際に行きましたか？\n\n「OK」を押すと、目立つ「✓ 訪問済み」に変更します。\nまだ行っていなければ「キャンセル」を押してください。`))return;
+  try{
+    await setDoc(doc(db,'wishes',id),{...x,status:'visited',visitDate:today(),updatedAt:now()});
+    alertMsg('✓ 訪問済みに変更しました');
+  }catch(e){alertMsg('保存できません: '+friendlyErr(e),true)}
+}
 // v2.0.10: 非破壊のゴミ箱。Firestoreの記録・画像ドキュメントは物理削除しない。
 // 必ず部分更新にして、既存の写真ID、訪問日、感想、地図の座標を保持する。
 async function moveToTrash(kind,id){
@@ -578,10 +661,38 @@ async function repairPhotoLinks(){
 $('repairPhotoLinks').addEventListener('click',repairPhotoLinks);
 $('bulkPhotos').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;if(!confirm(`${files.length}枚の写真を圧縮して取り込みますか？`))return;let done=0,skip=0,failed=0;const all=[...state.logs,...state.wishes];for(const file of files){const parts=file.name.match(/^([0-9a-zA-Z_-]{6,36})__([0-9a-zA-Z_-]{6,36})\./);if(!parts){skip++;continue}const photoId=parts[1],owner=parts[2],item=all.find(x=>x.id===owner);if(!item){skip++;continue}try{let dataUrl=await photoData(file,1200,.68);if(dataUrl.length>680000)dataUrl=await photoData(file,900,.5);if(dataUrl.length>800000)throw Error('画像サイズ超過');await setDoc(doc(db,'photos',photoId),{id:photoId,ownerId:owner,kind:state.logs.some(x=>x.id===owner)?'log':'wish',dataUrl,createdAt:now()});const photos=[...(item.photos||[])];const found=photos.findIndex(p=>p.id===photoId||p.id===photoId.replace(/^legacy_/,'')||(p.type==='legacy'&&p.id===photoId));const ref={type:'firestore',id:photoId,ref:photoId};if(found>=0)photos[found]=ref;else photos.push(ref);await setDoc(doc(db,state.logs.some(x=>x.id===owner)?'logs':'wishes',owner),{...item,photos,updatedAt:now()});item.photos=photos;cardThumbnailCache.delete(owner);done++}catch(_){failed++}$('bulkResult').textContent=`処理中 ${done+skip+failed}/${files.length}：成功${done}件、対象外${skip}件、失敗${failed}件`}$('bulkResult').textContent=`完了：成功${done}件、対象外${skip}件、失敗${failed}件。`});
 async function loadLeaflet(){if(window.L)return;state.leafletPromise??=new Promise((resolve,reject)=>{const style=document.createElement('link');style.rel='stylesheet';style.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(style);const sc=document.createElement('script');sc.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';sc.onload=resolve;sc.onerror=()=>reject(new Error('地図サービスを読み込めません'));document.head.appendChild(sc)});await state.leafletPromise}
+// 地図ピンが増えない原因を可視化。住所があっても座標が未設定なら一覧から直せる。
+function renderUnpinnedPlaces(){
+  const missing=[...state.logs.map(x=>({...x,_kind:'log'})),...state.wishes.map(x=>({...x,_kind:'wish'}))]
+    .filter(x=>!validCoord(x.lat,x.lng));
+  $('mapUnpinnedCount').textContent=missing.length+'件';
+  const list=$('mapUnpinnedList');list.replaceChildren();
+  if(!missing.length){const msg=document.createElement('p');msg.className='muted';msg.textContent='未登録の場所はありません。';list.append(msg);return;}
+  const fragment=document.createDocumentFragment();
+  for(const x of missing.slice(0,30)){
+    const row=document.createElement('div');row.className='map-unpinned-row';
+    const name=document.createElement('div');name.className='map-unpinned-text';
+    const strong=document.createElement('strong');strong.textContent=x.title||'名称なし';
+    const small=document.createElement('small');small.textContent=(x._kind==='wish'?'行きたい場所':'思い出')+' ｜ '+(x.place||'住所未登録');
+    name.append(strong,small);
+    const btn=document.createElement('button');btn.className='ghost slim';btn.type='button';btn.textContent='位置を登録';
+    btn.addEventListener('click',()=>edit(x._kind,x.id));
+    row.append(name,btn);fragment.append(row);
+  }
+  list.append(fragment);
+  if(missing.length>30){const small=document.createElement('p');small.className='muted';small.textContent='残り'+(missing.length-30)+'件。まずは上の30件から位置を登録してください。';list.append(small);}
+}
 async function loadMap(){await loadLeaflet();if(!state.map){state.map=window.L.map('mapCanvas').setView([36.4,137.5],5);window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:18}).addTo(state.map);state.map.on('click',e=>{state.pendingMapPoint=e.latlng;$('mapHint').textContent=`選択した位置：${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)} — 「＋記録」または「行きたい場所」から登録できます。`;})}setTimeout(()=>state.map.invalidateSize(),100);renderMapPins()}
 function renderMapPins(){if(!state.map)return;state.pinLayer?.clearLayers();state.pinLayer=window.L.layerGroup().addTo(state.map);for(const x of [...state.logs,...state.wishes]){if(!validCoord(x.lat,x.lng))continue;const wish=state.wishes.some(w=>w.id===x.id);const color=wish&&x.status!=='visited'?'#dcaa3b':'#128b8d';const mark=window.L.circleMarker([Number(x.lat),Number(x.lng)],{radius:7,color:'#fff',weight:2,fillColor:color,fillOpacity:.98});const popup=document.createElement('div');const title=document.createElement('strong');title.textContent=x.title;popup.append(title,document.createElement('br'));const link=document.createElement('a');link.href=mapsUrl(x.place||x.title);link.target='_blank';link.rel='noopener noreferrer';link.textContent='Googleマップで開く ↗';popup.append(link);mark.bindPopup(popup);mark.addTo(state.pinLayer)}}
 $('resetMap').addEventListener('click',()=>state.map?.setView([36.4,137.5],5));
-function applyHeader(){$('heroPhoto').style.backgroundImage=state.media?`linear-gradient(118deg,#143c5d66,#1a6a7a44),url(${state.media})`:''}
+function applyHeader(){
+  const hero=$('heroPhoto');
+  const hasPhoto=typeof state.media==='string' && state.media.startsWith('data:image/');
+  hero.classList.toggle('has-photo',hasPhoto);
+  // 写真を設定した場合はフィルターを重ねず、画像本来の色で表示する。
+  // 未設定時は既存CSSのグラデーションへ戻る。
+  hero.style.backgroundImage=hasPhoto?`url("${state.media}")`:'';
+}
 function renderHeaderChoices(){
   const area=$('headerPhotoChoices');area.innerHTML='';
   const search=$('headerPhotoSearch').value.trim().toLocaleLowerCase('ja'),candidates=[];
