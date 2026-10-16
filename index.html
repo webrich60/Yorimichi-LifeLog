@@ -1,12 +1,59 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#183d55"><title>よりみち日和｜思い出と旅の地図</title><link rel="stylesheet" href="./styles.css?v=20261016-207"><link rel="preconnect" href="https://www.gstatic.com"></head>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#183d55"><title>よりみち日和｜思い出と旅の地図</title><link rel="stylesheet" href="./styles.css?v=20261016-209-home"><link rel="preconnect" href="https://www.gstatic.com"></head>
 <body><header class="topbar"><div class="brand"><span class="logo">✿</span><div><strong>よりみち日和</strong><small>LIFELOG · WISH · MAP</small></div></div><div id="account" class="account hidden"><span id="emailBadge"></span><button class="ghost slim" id="logout">ログアウト</button></div></header>
 <main>
 <section id="loginPage" class="login-panel card"><div class="logo big">✿</div><h1>よりみち日和</h1><p>あの日の思い出も、これからの楽しみも。</p><button id="login" class="primary full">Googleでログイン</button><p class="muted">自分専用のライフログ。記録はFirebaseに保存されます。</p><p id="loginError" class="error" role="alert"></p></section>
 <section id="appPage" class="hidden">
 <div id="syncState" class="sync-bar" role="status">接続準備中…</div>
-<section id="home" class="view"><div class="home-hero"><div id="heroPhoto" class="hero-photo"><div class="hero-overlay"><span class="overline">MY LITTLE ADVENTURES</span><strong>よりみち日和</strong><small>思い出をもっと、自分らしく。</small></div></div><div class="hero-buttons"><button class="primary" data-action="new-log">＋ 思い出を残す</button><button class="accent" data-action="new-wish">✦ 行きたい場所</button></div></div><div class="stat-grid"><div class="stat card"><span>📖</span><strong id="statLogs">0</strong><small>思い出</small></div><div class="stat card"><span>✦</span><strong id="statWishes">0</strong><small>行きたい場所</small></div><div class="stat card"><span>🎟️</span><strong id="statStamps">0</strong><small>訪問スタンプ</small></div><div class="stat card"><span>📍</span><strong id="statPins">0</strong><small>地図ピン</small></div></div><div class="section-heading"><h2>最近の思い出</h2><button class="text-button" data-tab="logs">すべて見る →</button></div><div id="homeRecent" class="cards"></div><div class="section-heading"><h2>次の楽しみ</h2><button class="text-button" data-tab="wishes">行きたいリスト →</button></div><div id="homeWishes" class="cards"></div></section>
-<section id="logs" class="view hidden"><div class="section-heading"><h1>思い出アルバム</h1><button class="primary slim" data-action="new-log">＋ 記録</button></div><div class="toolbar"><input id="logSearch" type="search" placeholder="お店・場所・感想で検索"><select id="logSort" aria-label="並び順"><option value="new">新しい順</option><option value="old">古い順</option></select><select id="logView" aria-label="表示方法"><option value="group">場所ごと</option><option value="visit">訪問日ごと</option></select><select id="logCategory" aria-label="カテゴリで絞る"><option value="">すべてのカテゴリ</option></select></div><div id="logsList" class="cards"></div></section>
+<section id="home" class="view"><div class="home-hero"><div id="heroPhoto" class="hero-photo"><div class="hero-overlay"><span class="overline">MY LITTLE ADVENTURES</span><strong>よりみち日和</strong><small>思い出をもっと、自分らしく。</small></div></div><div class="hero-buttons"><button class="primary" data-action="new-log">＋ 思い出を残す</button><button class="accent" data-action="new-wish">✦ 行きたい場所</button></div></div><div class="home-memory-heading"><div class="home-heading-label">PLACES & MOMENTS</div><div class="home-heading-line"><div><h2>最近のよりみち</h2><p>あの日の景色を、5つの思い出から。</p></div><button class="text-button" data-tab="logs">アルバムを見る <span aria-hidden="true">↗</span></button></div></div><div id="homeRecent" class="memory-gallery" aria-label="最近行った5つの場所"></div><div class="home-quick-row"><button type="button" class="calendar-shortcut" data-tab="calendar"><span class="shortcut-ico" aria-hidden="true">▦</span><span><strong>思い出カレンダー</strong><small>2000年からの旅と出来事を見る</small></span><span class="shortcut-arrow" aria-hidden="true">→</span></button></div><div class="stat-grid"><div class="stat card"><span>📖</span><strong id="statLogs">0</strong><small>思い出</small></div><div class="stat card"><span>✦</span><strong id="statWishes">0</strong><small>行きたい場所</small></div><div class="stat card"><span>🎟️</span><strong id="statStamps">0</strong><small>訪問スタンプ</small></div><div class="stat card"><span>📍</span><strong id="statPins">0</strong><small>地図ピン</small></div></div><div class="section-heading"><h2>次の楽しみ</h2><button class="text-button" data-tab="wishes">行きたいリスト →</button></div><div id="homeWishes" class="cards"></div></section>
+<section id="logs" class="view hidden"><div class="section-heading"><h1>思い出アルバム</h1><button class="primary slim" data-action="new-log">＋ 記録</button></div><div class="log-filter-panel card">
+  <div class="log-filter-row log-filter-top">
+    <label class="log-filter-search">場所・お店・感想を検索<input id="logSearch" type="search" placeholder="キーワードを入力"></label>
+    <label>並び順<select id="logSort" aria-label="並び順"><option value="new">新しい順</option><option value="old">古い順</option></select></label>
+    <label>表示方法<select id="logView" aria-label="表示方法"><option value="group">場所ごと</option><option value="visit">訪問日ごと</option></select></label>
+  </div>
+  <div class="log-filter-row log-filter-bottom">
+    <label>年から探す<select id="logYear" aria-label="記録した年"><option value="">すべての年</option></select></label>
+    <label>月から探す<select id="logMonth" aria-label="記録した月"><option value="">すべての月</option></select></label>
+    <label class="log-filter-category">カテゴリ（大・小）<select id="logCategory" aria-label="カテゴリで絞る"><option value="">すべてのカテゴリ</option></select></label>
+    <button id="logFilterReset" class="ghost slim" type="button">条件をクリア</button>
+  </div>
+  <div class="log-filter-info"><span id="logFilterCount" role="status">記録を読み込み中…</span><span>写真は各記録のカテゴリで検索できます</span></div>
+</div>
+<div id="logsList" class="cards"></div></section>
+
+<section id="calendar" class="view hidden" aria-label="思い出年表とカレンダー">
+<div class="section-heading calendar-page-heading"><div><div class="calendar-eyebrow">YOUR MEMORY JOURNEY</div><h1>思い出カレンダー</h1></div><button class="ghost slim" type="button" data-tab="logs">アルバムを見る ↗</button></div>
+<section id="memoryCalendar" class="memory-calendar card" aria-label="思い出年表と月間カレンダー">
+  <div class="memory-calendar-head">
+    <div><div class="calendar-eyebrow">MEMORY TIMELINE</div><h2>思い出年表・カレンダー</h2><p>2000年から記録できます。年・月・日を選ぶとアルバムとも連動します。</p></div>
+    <button id="calendarToday" type="button" class="ghost slim">今日に戻る</button>
+  </div>
+  <div class="timeline-toolbar">
+    <button id="timelinePrevDecade" type="button" class="ghost slim" aria-label="10年前へ">‹ 前の10年</button>
+    <label>年を選ぶ<select id="timelineYear" aria-label="年表の年を選ぶ"></select></label>
+    <button id="timelineNextDecade" type="button" class="ghost slim" aria-label="次の10年へ">次の10年 ›</button>
+  </div>
+  <div id="timelineYears" class="timeline-years" aria-label="10年単位の年表"></div>
+  <div class="calendar-main">
+    <div class="calendar-month-panel">
+      <div class="calendar-month-head">
+        <button id="calendarPrevMonth" type="button" class="ghost calendar-arrow" aria-label="前の月">‹</button>
+        <h3 id="calendarMonthTitle">年月</h3>
+        <button id="calendarNextMonth" type="button" class="ghost calendar-arrow" aria-label="次の月">›</button>
+      </div>
+      <div class="calendar-weekdays" aria-hidden="true"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div>
+      <div id="calendarDayGrid" class="calendar-days" role="group" aria-label="月間カレンダー"></div>
+      <div class="calendar-legend"><span><i class="legend-memory"></i>思い出</span><span><i class="legend-life"></i>人生の出来事</span><span><i class="legend-plan"></i>行きたい予定</span><span>日付を選ぶと下の一覧も絞り込み</span></div>
+    </div>
+    <div class="calendar-day-panel">
+      <div class="calendar-day-summary"><div><div class="calendar-eyebrow">ON THIS DAY</div><h3 id="calendarSelectedTitle">日付を選んでください</h3></div><button id="calendarClearDay" class="ghost slim" type="button">日付指定を解除</button></div>
+      <div id="calendarDayEvents" class="calendar-day-events" aria-live="polite"></div>
+      <div class="calendar-add-actions"><button type="button" id="calendarAddMemory" class="primary">＋ 思い出を記録</button><button type="button" id="calendarAddLifeEvent" class="ghost">＋ 出来事を記録</button></div>
+    </div>
+  </div>
+</section>
+</section>
 <section id="wishes" class="view hidden"><div class="section-heading"><h1>行きたい場所</h1><button class="primary slim" data-action="new-wish">＋ 追加</button></div><div class="toolbar"><input id="wishSearch" type="search" placeholder="行ってみたい場所を検索"><select id="wishSort" aria-label="並び順"><option value="new">新しい順</option><option value="old">古い順</option></select><select id="wishCategory" aria-label="カテゴリで絞る"><option value="">すべてのカテゴリ</option></select><select id="wishStatus" aria-label="訪問状態"><option value="">すべて</option><option value="wish">行きたい</option><option value="planning">計画中</option><option value="visited">行った！</option></select></div><div id="wishesList" class="cards"></div></section>
 <section id="map" class="view hidden"><div class="section-heading"><h1>思い出の地図</h1><button class="ghost slim" id="resetMap">日本全体</button></div><p class="muted">青緑＝行った場所　金色＝行きたい場所。地図を押して新しい場所を登録できます。</p><div id="mapCanvas" role="region" aria-label="日本地図"></div><div class="map-legend"><span>● 訪問済み</span><span>● 行きたい</span></div><p id="mapHint" class="muted"></p></section>
 <section id="settings" class="view hidden"><div class="section-heading"><h1>設定とデータ管理</h1></div>
@@ -17,9 +64,14 @@
 <article class="card settings-card"><h2>🔁 スプレッドシート同期</h2><p>GASを10分ごとに実行し、Firebaseから元のシートに反映します。初期設定は同梱の説明書を参照してください。</p><p class="muted">同期に失敗してもFirebase上の記録は残ります。</p></article></div></section>
 </section>
 </main>
-<nav id="bottomNav" class="bottom-nav hidden" aria-label="メインメニュー"><button data-tab="home" class="active"><span>⌂</span>ホーム</button><button data-tab="logs"><span>▣</span>思い出</button><button data-tab="wishes"><span>✧</span>行きたい</button><button data-tab="map"><span>◎</span>マップ</button><button data-tab="settings"><span>⚙</span>設定</button></nav>
+<nav id="bottomNav" class="bottom-nav hidden" aria-label="メインメニュー"><button data-tab="home" class="active"><span>⌂</span>ホーム</button><button data-tab="logs"><span>▣</span>思い出</button><button data-tab="calendar"><span>▦</span>カレンダー</button><button data-tab="wishes"><span>✧</span>行きたい</button><button data-tab="map"><span>◎</span>マップ</button><button data-tab="settings"><span>⚙</span>設定</button></nav>
 <dialog id="editDialog" class="dialog"><form id="editForm"><div class="modal-head"><h2 id="dialogTitle">記録する</h2><button class="icon-button" type="button" data-close="editDialog" aria-label="閉じる">×</button></div><input type="hidden" id="editKind"><input type="hidden" id="editId"><div class="form-grid"><label>名前・タイトル<span>*</span><input id="fieldTitle" maxlength="150" required placeholder="お店・旅行先など"></label><label>日付<input id="fieldDate" type="date"></label><label>大カテゴリ<select id="fieldMajor"></select></label><label>小カテゴリ<select id="fieldMinor"></select></label><label>日帰り・宿泊<select id="fieldTrip"><option value="未定">未定</option><option>日帰り</option><option>宿泊</option></select></label><label id="statusArea">状態<select id="fieldStatus"><option value="wish">行きたい</option><option value="planning">計画中</option><option value="visited">行った！</option></select></label><label class="wide">住所・場所<input id="fieldPlace" placeholder="福井県坂井市…"></label><label class="wide">感想・行きたい理由<textarea id="fieldNote" rows="3"></textarea></label><label>緯度<input id="fieldLat" type="number" step="any" placeholder="地図から入力可"></label><label>経度<input id="fieldLng" type="number" step="any"></label><label>同じ場所のまとめ名<input id="fieldGroup" placeholder="例：やよい軒 春江店"></label><label>写真<input id="fieldPhotos" type="file" accept="image/*" multiple></label></div><div id="photoPending" class="muted"></div><div class="actions end"><button type="button" class="ghost" data-close="editDialog">キャンセル</button><button class="primary" type="submit" id="saveButton">保存する</button></div><p id="editError" class="error"></p></form></dialog>
 <dialog id="visitDialog" class="dialog"><div class="modal-head"><h2 id="visitTitle">訪問記録</h2><button class="icon-button" data-close="visitDialog" aria-label="閉じる">×</button></div><div id="visitBody"></div></dialog>
+<dialog id="photoViewerDialog" class="photo-viewer" aria-label="写真の拡大表示">
+  <div class="photo-viewer-head"><div class="photo-viewer-title" id="photoViewerTitle"></div><button class="photo-viewer-close" id="photoViewerClose" type="button" aria-label="閉じる">×</button></div>
+  <div class="photo-viewer-main"><button type="button" id="photoViewerPrev" class="photo-viewer-arrow" aria-label="前の写真">‹</button><div class="photo-viewer-stage"><img id="photoViewerImage" alt="拡大した思い出の写真"><p id="photoViewerStatus" role="status">読み込み中…</p></div><button type="button" id="photoViewerNext" class="photo-viewer-arrow" aria-label="次の写真">›</button></div>
+  <div class="photo-viewer-footer"><span id="photoViewerCount"></span><span>ESCキーで閉じる・左右の矢印で切り替え</span></div>
+</dialog>
 <dialog id="headerDialog" class="dialog"><div class="modal-head"><h2>写真ヘッダースタジオ</h2><button class="icon-button" data-close="headerDialog" aria-label="閉じる">×</button></div><p class="muted">思い出の写真または新しい写真を選び、横長に切り抜いて保存します。</p><label class="file-button ghost">スマホ・PCの写真を選ぶ<input id="headerFile" type="file" accept="image/*" hidden></label><input id="headerPhotoSearch" type="search" placeholder="思い出・お店・写真を検索"><div id="headerPhotoChoices" class="photo-choices"></div><canvas id="headerCanvas" width="880" height="352" aria-label="切り抜きプレビュー"></canvas><label>拡大率 <input id="headerZoom" type="range" min="1" max="3" step="0.02" value="1"></label><div class="actions end"><button class="primary" id="saveHeader" type="button">この写真で保存</button></div><p id="headerError" class="error"></p></dialog>
 <div id="toast" class="toast hidden" role="status"></div>
-<script type="module" src="./app.js?v=20261016-207"></script></body></html>
+<script type="module" src="./app.js?v=20261016-209-home"></script></body></html>

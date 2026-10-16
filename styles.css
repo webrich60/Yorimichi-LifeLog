@@ -84,3 +84,211 @@
  .visit-mini-thumb{height:68px;width:67px}
  .visit-photo-row .entry-actions button{font-size:.78rem;min-height:31px;padding:4px 8px}
 }
+
+/* v2.0.8: 年月・カテゴリ検索、写真ビューア */
+.log-filter-panel{padding:14px 16px;margin:0 0 17px;border-radius:19px}
+.log-filter-row{display:grid;gap:12px;align-items:end}
+.log-filter-top{grid-template-columns:minmax(240px,1fr) 160px 160px}
+.log-filter-bottom{grid-template-columns:150px 150px minmax(180px,1fr) 130px;margin-top:11px}
+.log-filter-row label{display:flex;flex-direction:column;gap:5px;color:#33586e;font-size:.81rem;font-weight:850;min-width:0}
+.log-filter-row label>input,.log-filter-row label>select{width:100%;font-size:.95rem;font-weight:650;min-width:0}
+.log-filter-row select{white-space:nowrap;text-overflow:ellipsis}
+.log-filter-bottom button{align-self:end;min-height:43px}
+.log-filter-info{display:flex;justify-content:space-between;gap:9px;flex-wrap:wrap;margin-top:11px;color:#476b7c;font-size:.78rem}
+#logFilterCount{font-weight:850;color:#146e75}
+.photo-thumb-button{display:block;flex:0 0 95px;width:95px;height:82px;border:0;background:transparent;padding:0;border-radius:12px;cursor:zoom-in}
+.photo-thumb-button .photo-thumb{display:block;max-width:100%}
+.photo-thumb-button:focus-visible{outline:3px solid #138482;outline-offset:3px}
+.photo-viewer{position:fixed;inset:0;margin:auto;width:min(95vw,1100px);height:min(93dvh,900px);max-width:none;max-height:none;border:1px solid #3e586c;border-radius:20px;background:#101f2d;color:white;padding:0;box-shadow:0 20px 80px #041321ba;overflow:hidden}
+.photo-viewer::backdrop{background:#071321da}
+.photo-viewer-head{min-height:62px;display:flex;justify-content:space-between;align-items:center;gap:15px;padding:12px 15px 10px 20px;background:#192e40}
+.photo-viewer-title{font-weight:900;font-size:1.02rem;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+.photo-viewer-close{background:#314e62;color:white;border:0;border-radius:12px;width:44px;height:44px;font-size:1.8rem;flex-shrink:0}
+.photo-viewer-main{display:grid;grid-template-columns:56px minmax(0,1fr) 56px;align-items:center;gap:4px;height:calc(100% - 116px);padding:5px 8px}
+.photo-viewer-arrow{border:0;border-radius:13px;background:#2b4559;color:white;min-height:64px;font-size:2.2rem;font-weight:bold}
+.photo-viewer-arrow:disabled{opacity:.25;cursor:default}
+.photo-viewer-stage{position:relative;display:grid;place-items:center;min-width:0;height:100%;overflow:hidden}
+.photo-viewer-stage img{display:block;width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;user-select:none}
+.photo-viewer-stage p{font-weight:800;color:white}
+.photo-viewer-footer{height:54px;display:flex;justify-content:space-between;align-items:center;gap:9px;padding:10px 20px;background:#192e40;color:#dce9f0;font-size:.85rem}
+.photo-viewer-footer span:first-child{font-size:1rem;font-weight:850;color:white}
+@media(max-width:760px){
+ .log-filter-panel{padding:11px}
+ .log-filter-top{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .log-filter-search{grid-column:1/-1}
+ .log-filter-bottom{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:9px}
+ .log-filter-category{grid-column:1/-1}
+ .log-filter-bottom button{grid-column:1/-1;justify-self:stretch}
+ .log-filter-info{font-size:.74rem}
+ .photo-viewer{width:100vw;height:100dvh;border-radius:0}
+ .photo-viewer-main{grid-template-columns:40px minmax(0,1fr) 40px;padding:0 3px;gap:0}
+ .photo-viewer-arrow{min-height:70px;font-size:1.9rem;border-radius:8px}
+ .photo-viewer-head{padding:10px 12px}
+ .photo-viewer-footer{padding:8px 12px}
+ .photo-viewer-footer span:last-child{font-size:.7rem}
+}
+
+/* v2.0.8 — 2000年からの思い出年表とカレンダー */
+.memory-calendar{padding:18px 19px;margin:18px 0 24px;border-radius:20px;color:#163e56}
+.memory-calendar-head{display:flex;align-items:start;justify-content:space-between;gap:10px}
+.memory-calendar-head h2{font-size:1.32rem;margin:2px 0 4px;font-weight:900}
+.memory-calendar-head p{font-size:.84rem;color:#496c7e;margin:0 0 14px}
+.calendar-eyebrow{font-size:.7rem;color:#237d82;letter-spacing:.15em;font-weight:900}
+.timeline-toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:7px 0 10px}
+.timeline-toolbar label{display:flex;align-items:center;gap:10px;font-weight:850;font-size:.85rem}
+.timeline-toolbar select{min-width:110px;font-weight:850}
+.timeline-years{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:5px;margin:0 0 17px}
+.timeline-year{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:1.5px solid #d2e4e9;border-radius:11px;background:#f3f9fa;color:#244960;min-width:0;min-height:67px;padding:6px 2px}
+.timeline-year strong{font-size:.93rem}.timeline-year small{font-size:.64rem;color:#597b8a;white-space:nowrap}
+.timeline-year.active{background:#183e59;color:white;border-color:#183e59;box-shadow:0 3px 9px #193d5833}
+.timeline-year.active small{color:#d9f4f1}.timeline-year:hover:not(.active){background:#e0f2f1}
+.calendar-main{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(255px,.85fr);gap:17px}
+.calendar-month-panel{min-width:0;background:#f8fbfc;border:1.5px solid #d9e8ec;border-radius:17px;padding:12px}
+.calendar-month-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px}
+.calendar-month-head h3{font-size:1.2rem;font-weight:900;margin:0}
+.calendar-arrow{min-width:43px;font-size:1.6rem;padding:1px 7px;min-height:40px}
+.calendar-weekdays,.calendar-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.calendar-weekdays span{font-weight:900;text-align:center;font-size:.8rem;color:#547182;padding:4px 0}
+.calendar-weekdays span:first-child{color:#b34b4d}.calendar-weekdays span:last-child{color:#346f9a}
+.calendar-days{min-height:240px}.calendar-day{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px;border:1.5px solid #e0ebef;border-radius:9px;padding:6px 2px 4px;background:#fff;color:#194157;min-width:0;min-height:53px}
+.calendar-day b{font-size:.91rem}.calendar-day.sunday b{color:#c04f54}.calendar-day.saturday b{color:#397da2}
+.calendar-day.today{border-color:#b4a46b;background:#fff8e5}
+.calendar-day.selected{background:#126e78;color:#fff;border-color:#126e78;box-shadow:0 2px 7px #126e7833}
+.calendar-day.selected b,.calendar-day.selected small{color:white}
+.calendar-day:focus-visible{outline:3px solid #eab969;outline-offset:1px}
+.calendar-day:hover:not(.selected){border-color:#6daeb4;background:#ecf7f7}
+.calendar-day-dots{display:flex;gap:3px;min-height:7px;align-items:center}
+.calendar-day-dots i,.calendar-legend i{display:inline-block;width:7px;height:7px;border-radius:50%}
+.calendar-day-dots .memory-dot,.calendar-legend .legend-memory{background:#0b858a}
+.calendar-day-dots .plan-dot,.calendar-legend .legend-plan{background:#daaa42}
+.calendar-day.selected .memory-dot{background:#dbffff}
+.calendar-day.selected .plan-dot{background:#ffdc89}
+.calendar-day small{font-size:.64rem;color:#4c7782;line-height:1.1}
+.calendar-legend{display:flex;gap:13px;align-items:center;flex-wrap:wrap;margin-top:11px;color:#4f7381;font-size:.72rem}
+.calendar-legend span{display:inline-flex;align-items:center;gap:4px}
+.calendar-day-panel{display:flex;flex-direction:column;min-width:0;border:1.5px solid #d9e8ec;background:white;padding:13px;border-radius:17px;min-height:100%}
+.calendar-day-summary{display:flex;align-items:start;justify-content:space-between;gap:7px;margin-bottom:10px}
+.calendar-day-summary h3{font-size:1.05rem;margin:3px 0 0}
+.calendar-day-summary button{font-size:.73rem;min-height:32px;padding:4px 7px}
+.calendar-day-events{display:flex;flex-direction:column;gap:7px;max-height:294px;min-height:120px;overflow:auto;margin-bottom:11px}
+.calendar-event{display:flex;align-items:center;text-align:left;gap:9px;min-height:58px;min-width:0;border:1.3px solid #dce8ec;border-radius:12px;background:#f7fafb;padding:8px 10px;color:#153d55}
+.calendar-event:hover{border-color:#78b6b9;background:#eaf5f5}.calendar-event.plan-event{background:#fff8e9;border-color:#f0e1bd}
+.calendar-event-symbol{font-size:1.22rem}.calendar-event-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.calendar-event-info strong{overflow-wrap:anywhere;line-height:1.4}.calendar-event-info small{font-size:.72rem;color:#537285}
+.calendar-no-record{font-size:.85rem;color:#54788a;background:#f3f8fa;border-radius:12px;padding:13px}
+.calendar-more{margin:4px 0}
+.calendar-day-panel>.primary{margin-top:auto}
+@media(max-width:850px){.calendar-main{grid-template-columns:1fr}.calendar-day-events{max-height:210px;min-height:60px}.timeline-year strong{font-size:.83rem}.timeline-year small{font-size:.59rem}}
+@media(max-width:650px){.memory-calendar{padding:12px;margin:15px 0 17px;border-radius:16px}.memory-calendar-head h2{font-size:1.1rem}.memory-calendar-head p{font-size:.76rem}.memory-calendar-head #calendarToday{font-size:.75rem;min-height:37px;padding:5px 7px;white-space:nowrap}.timeline-toolbar label{font-size:.76rem;gap:4px}.timeline-toolbar select{min-width:93px;font-size:.85rem;padding:6px}.timeline-toolbar button{font-size:.72rem;padding:6px;min-height:36px}.timeline-years{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}.timeline-year{min-height:50px;border-radius:10px;gap:0}.timeline-year strong{font-size:.88rem}.timeline-year small{font-size:.6rem}.calendar-month-panel{padding:8px}.calendar-weekdays,.calendar-days{gap:3px}.calendar-day{min-height:47px;padding:4px 1px 2px;border-radius:7px}.calendar-day b{font-size:.86rem}.calendar-day small{font-size:.6rem}.calendar-legend{gap:8px;font-size:.67rem}.calendar-day-panel{padding:10px}.calendar-day-summary h3{font-size:1rem}}
+
+/* 年表と連動する「人生の出来事」（通常の思い出として安全に保存） */
+.calendar-day-dots .life-dot,.calendar-legend .legend-life{background:#9369b6}
+.calendar-day.selected .life-dot{background:#eacfff}
+.calendar-event.life-event{border-color:#decdea;background:#f8f2fc}
+.calendar-add-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:auto}
+.calendar-add-actions button{min-height:43px;font-size:.79rem;padding:7px 8px}
+@media(max-width:650px){.calendar-add-actions{grid-template-columns:1fr 1fr}.calendar-add-actions button{font-size:.75rem}}
+
+
+/* v2.0.9 — ホームは写真を主役に、年表は独立したカレンダーページへ */
+.home-memory-heading{margin:23px 0 13px}
+.home-heading-label{color:#187e81;font-weight:900;font-size:.68rem;letter-spacing:.2em;margin-bottom:4px}
+.home-heading-line{display:flex;align-items:end;justify-content:space-between;gap:12px}
+.home-heading-line h2{font-size:clamp(1.32rem,2vw,1.63rem);margin:0;color:#143c53;letter-spacing:.02em}
+.home-heading-line p{margin:2px 0 0;font-size:.82rem;color:#527589}
+.home-heading-line .text-button{font-size:.83rem;padding:7px 0}
+.memory-gallery{display:grid;grid-template-columns:minmax(0,1.08fr) repeat(2,minmax(0,.54fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:12px;min-width:0}
+.memory-tile{position:relative;overflow:hidden;display:flex;flex-direction:column;background:#fff;border:1.5px solid #d3e4e9;border-radius:19px;min-width:0;box-shadow:0 8px 22px #183e5610;transition:transform .15s ease,box-shadow .15s ease}
+.memory-tile:hover{box-shadow:0 12px 25px #183e561a;transform:translateY(-1px)}
+.memory-tile-feature{grid-row:1/3}
+.memory-tile-picture{position:relative;min-width:0;height:112px;overflow:hidden;background:linear-gradient(140deg,#dce9ea,#ebf4ef)}
+.memory-tile-feature .memory-tile-picture{height:245px}
+.memory-tile .entry-cover{display:grid;place-items:center;width:100%;height:100%;border:0;border-radius:0;background:linear-gradient(140deg,#d4e8e7,#eaf3f4);padding:0;position:relative;overflow:hidden;color:#496c79;cursor:zoom-in}
+.memory-tile .entry-cover .photo-empty-icon{font-size:2rem}
+.memory-tile .entry-cover .photo-empty-text{font-weight:850;font-size:.76rem}
+.memory-tile .entry-cover.has-photo:after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,#051e3140,transparent 46%);pointer-events:none}
+.memory-tile .record-cover-img{position:absolute;width:100%;height:100%;inset:0;object-fit:cover;transition:transform .24s ease}
+.memory-tile .entry-cover:hover .record-cover-img{transform:scale(1.035)}
+.memory-tile .record-cover-label{position:absolute;bottom:8px;right:8px;background:#0e3448c9;color:white;border-radius:99px;padding:3px 9px;font-size:.65rem;font-weight:850;z-index:1}
+.memory-tile-rank{position:absolute;top:10px;left:10px;background:#123f52db;color:white;border:1px solid #ffffff70;border-radius:9px;padding:3px 9px;font-size:.7rem;letter-spacing:.08em;font-weight:900;pointer-events:none}
+.memory-tile-info{padding:12px 13px;display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
+.memory-tile-feature .memory-tile-info{padding:17px 18px}
+.memory-tile-meta{font-size:.72rem;color:#507486;line-height:1.35;overflow-wrap:anywhere}
+.memory-tile-info h3{font-size:.95rem;line-height:1.38;color:#173e58;margin:0;overflow-wrap:anywhere;font-weight:900}
+.memory-tile-feature .memory-tile-info h3{font-size:1.29rem}
+.memory-tile-open{color:#08777e;background:transparent;border:0;padding:6px 0 1px;text-align:left;align-self:flex-start;font-size:.79rem;font-weight:900;min-height:34px;margin-top:auto}
+.memory-tile-open:hover{text-decoration:underline}
+.home-quick-row{margin-top:14px}
+.calendar-shortcut{display:flex;align-items:center;gap:12px;width:100%;padding:12px 18px;border-radius:17px;border:1.5px solid #cbdfe4;background:linear-gradient(110deg,#e8f4f3,#f6faf9);color:#173e58;text-align:left;min-height:70px}
+.calendar-shortcut:hover{background:#dceff0;border-color:#7eb9b7}
+.shortcut-ico{font-size:1.9rem;display:grid;place-items:center;width:45px;height:45px;background:#fff;border-radius:12px;color:#138187;flex:0 0 auto}
+.calendar-shortcut span:nth-child(2){display:flex;flex-direction:column;gap:2px;flex:1}
+.calendar-shortcut strong{font-size:.99rem;font-weight:900}
+.calendar-shortcut small{font-size:.78rem;color:#536f80}
+.shortcut-arrow{font-size:1.5rem;color:#147c80;font-weight:bold}
+.home-quick-row + .stat-grid{margin:18px 0 22px}
+.calendar-page-heading{margin-top:13px}
+.calendar-page-heading .calendar-eyebrow{margin-bottom:1px}
+.calendar-page-heading h1{margin:0;font-size:1.55rem}
+#calendar .memory-calendar{margin-top:14px}
+@media (max-width:760px){
+  .memory-gallery{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto;gap:10px}
+  .memory-tile-feature{grid-column:1/-1;grid-row:auto;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);min-height:168px}
+  .memory-tile-feature .memory-tile-picture{height:100%;min-height:168px}
+  .memory-tile-feature .memory-tile-info{padding:14px 12px;justify-content:center;gap:7px}
+  .memory-tile-small .memory-tile-picture{height:112px}
+}
+@media (max-width:650px){
+  .home-memory-heading{margin:19px 0 11px}
+  .home-heading-line h2{font-size:1.23rem}
+  .home-heading-line p{font-size:.75rem}
+  .home-heading-line .text-button{font-size:.72rem;white-space:nowrap}
+  .memory-gallery{gap:9px}
+  .memory-tile{border-radius:16px}
+  .memory-tile-small .memory-tile-picture{height:104px}
+  .memory-tile-small .memory-tile-info{padding:10px 10px 11px}
+  .memory-tile-info h3{font-size:.92rem}
+  .memory-tile-feature .memory-tile-info h3{font-size:1.04rem}
+  .memory-tile-feature .memory-tile-picture{min-height:156px}
+  .memory-tile-feature{min-height:156px}
+  .memory-tile-meta{font-size:.67rem}
+  .memory-tile-feature .memory-tile-info{padding:10px 9px}
+  .memory-tile-open{font-size:.77rem;min-height:32px}
+  .calendar-shortcut{min-height:63px;padding:9px 11px;border-radius:15px}
+  .calendar-shortcut strong{font-size:.92rem}
+  .calendar-shortcut small{font-size:.71rem}
+  .home-quick-row + .stat-grid{margin-top:15px}
+  .bottom-nav{grid-template-columns:repeat(6,minmax(0,1fr));padding-left:3px;padding-right:3px;gap:1px}
+  .bottom-nav button{font-size:.63rem;padding:6px 0;min-width:0;letter-spacing:-.025em;border-radius:10px}
+  .bottom-nav span{font-size:1.33rem}
+}
+@media(min-width:651px) and (max-width:1099px){
+  .bottom-nav{gap:2px}
+  .bottom-nav button{padding:7px 8px;font-size:.77rem}
+}
+@media (max-width:355px){
+  .memory-tile-feature .memory-tile-picture{min-height:148px}
+  .memory-tile-feature{min-height:148px}
+  .memory-tile-small .memory-tile-picture{height:86px}
+  .memory-tile-open{font-size:.73rem}
+  .bottom-nav button{font-size:.57rem}
+}
+
+/* 1枚目は雑誌の表紙のようなフルブリード写真と落ち着いた文字帯。 */
+.memory-tile-feature{min-height:310px;position:relative;justify-content:flex-end;background:linear-gradient(132deg,#103b55,#378c8c)}
+.memory-tile-feature .memory-tile-picture{position:absolute;inset:0;width:100%;height:100%;min-height:0}
+.memory-tile-feature .memory-tile-info{position:relative;z-index:2;flex:0 0 auto;margin-top:auto;min-height:120px;background:linear-gradient(0deg,#082d45f5,#082d45bb 65%,transparent);color:#fff;pointer-events:none;padding:35px 21px 19px}
+.memory-tile-feature .memory-tile-info h3{color:#fff;font-size:1.37rem}
+.memory-tile-feature .memory-tile-meta{color:#e6f6f9}
+.memory-tile-feature .memory-tile-open{color:#ffebbd;pointer-events:auto}
+.memory-tile-feature .record-cover-label{top:13px;bottom:auto;right:11px}
+.memory-tile-feature .memory-tile-rank{z-index:3}
+@media(max-width:760px){
+  .memory-tile-feature{min-height:212px;display:flex;grid-column:1/-1;grid-row:auto}
+  .memory-tile-feature .memory-tile-picture{height:100%;min-height:0}
+  .memory-tile-feature .memory-tile-info{min-height:100px;padding:31px 15px 12px;justify-content:end;gap:2px}
+  .memory-tile-feature .memory-tile-info h3{font-size:1.13rem}
+}
+@media(max-width:355px){.memory-tile-feature{min-height:190px}}
+/* アイコン付きの写真拡大ラベルをカード右上に小さく表示。 */
+.memory-tile .record-cover-label{left:auto;right:9px;width:auto;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;box-shadow:0 2px 7px #102d3c33}

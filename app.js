@@ -21,7 +21,7 @@ const alertMsg=(message,bad=false)=>{let el=$('toast');el.textContent=message;el
 const syncInfo=s=>{$('syncState').textContent=s};
 const friendlyErr=e=>{const c=e?.code||'',m=e?.message||String(e);if(c.includes('permission-denied'))return '保存権限がありません。FirestoreルールとGoogleアカウントを確認してください。';if(c.includes('offline')||c.includes('unavailable'))return '通信に接続できません。ネットワークを確認してください。';if(c.includes('popup'))return 'Googleログインが開けません。Chromeで開いて、ポップアップの許可を確認してください。';return m.slice(0,180)};
 const dateSort=(arr,which='date',dir='new')=>[...arr].sort((a,b)=>dir==='new'?String(b[which]||b.createdAt||'').localeCompare(String(a[which]||a.createdAt||'')):String(a[which]||a.createdAt||'').localeCompare(String(b[which]||b.createdAt||'')));
-const categoriesWithHistory=()=>{const cats=structuredClone(state.categories);for(const item of [...state.logs,...state.wishes]){const maj=item.major||'その他',min=item.minor||'';if(!cats[maj])cats[maj]=[];if(min&&!cats[maj].includes(min))cats[maj].push(min)}return cats};
+const categoriesWithHistory=()=>{const cats=structuredClone(state.categories);if(!cats['人生の出来事'])cats['人生の出来事']=['家族','仕事','挑戦','転機・節目','その他'];for(const item of [...state.logs,...state.wishes]){const maj=item.major||'その他',min=item.minor||'';if(!cats[maj])cats[maj]=[];if(min&&!cats[maj].includes(min))cats[maj].push(min)}return cats};
 function optionList(select,items,first=''){const current=select.value;select.replaceChildren();if(first){select.add(new Option(first,''))}items.forEach(x=>select.add(new Option(x,x)));if([...select.options].some(x=>x.value===current))select.value=current}
 function resetLogin(){state.user=null;state.logs=[];state.wishes=[];state.photoCache.clear();cardThumbnailCache.clear();state.headerPhotoIndex=null;state.visitSeq++;state.loaded={logs:false,wishes:false};for(const un of state.unsubs)try{un()}catch(_){}state.unsubs=[];$('loginPage').classList.remove('hidden');$('appPage').classList.add('hidden');$('bottomNav').classList.add('hidden');$('account').classList.add('hidden')}
 // Firebase Auth の localStorage 容量超過に備える。既存の他アプリの端末データは削除しない。
@@ -69,12 +69,12 @@ function connectData(){for(const unsub of state.unsubs)unsub();state.unsubs=[];s
 function dataUpdated(){syncInfo(state.loaded.logs&&state.loaded.wishes?'● 本番接続済み・自動保存有効':'データを同期しています…');refreshCategoryUi();render()}
 const navButtons=[...document.querySelectorAll('[data-tab]')];function showTab(tab){state.tab=tab;document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hidden',el.id!==tab));document.querySelectorAll('.bottom-nav button').forEach(btn=>btn.classList.toggle('active',btn.dataset.tab===tab));render();if(tab==='map')loadMap().catch(e=>{$('mapHint').textContent='地図読み込みに失敗しました: '+friendlyErr(e)})}
 navButtons.forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
-function render(){if(!state.user)return;const logs=state.logs,wishes=state.wishes;$('statLogs').textContent=logs.length;$('statWishes').textContent=wishes.filter(x=>x.status!=='visited').length;$('statStamps').textContent=wishes.filter(x=>x.status==='visited').length;$('statPins').textContent=[...logs,...wishes].filter(x=>validCoord(x.lat,x.lng)).length;renderHome();if(state.tab==='logs')renderLogs();if(state.tab==='wishes')renderWishes();if(state.tab==='settings')renderCategories();if(state.tab==='map'&&state.map)renderMapPins()}
+function render(){if(!state.user)return;const logs=state.logs,wishes=state.wishes;$('statLogs').textContent=logs.length;$('statWishes').textContent=wishes.filter(x=>x.status!=='visited').length;$('statStamps').textContent=wishes.filter(x=>x.status==='visited').length;$('statPins').textContent=[...logs,...wishes].filter(x=>validCoord(x.lat,x.lng)).length;renderHome();if(state.tab==='logs')renderLogs();if(state.tab==='calendar')renderMemoryCalendar();if(state.tab==='wishes')renderWishes();if(state.tab==='settings')renderCategories();if(state.tab==='map'&&state.map)renderMapPins()}
 // 写真付き思い出カード：写真がない記録は中立的なアイコンを表示する。
 // ※ 見た目の改善のみ。写真・記録・ピンの内容は更新しない。
 function thumbButton(x,compact=false){
   const title=esc(x.title||'思い出');
-  return `<button type="button" class="${compact?'visit-mini-thumb':'entry-cover'}" data-photo-log="${esc(x.id)}" data-view="${esc(x.id)}" aria-label="${title}の思い出を見る"><span class="photo-empty-icon" aria-hidden="true">📷</span><span class="photo-empty-text">写真を確認中</span></button>`;
+  return `<button type="button" class="${compact?'visit-mini-thumb':'entry-cover'}" data-photo-log="${esc(x.id)}" data-photo-preview="${esc(x.id)}" aria-label="${title}の写真を拡大して見る"><span class="photo-empty-icon" aria-hidden="true">📷</span><span class="photo-empty-text">写真を確認中</span></button>`;
 }
 function cardLog(x){
   return `<article class="entry card entry-photo-card">
@@ -128,7 +128,7 @@ async function fillThumbnail(el){
     if(uri){
       const img=document.createElement('img');
       img.src=uri;img.alt='';img.loading='lazy';img.decoding='async';img.className='record-cover-img';
-      const label=document.createElement('span');label.className='record-cover-label';label.textContent='写真を見る';
+      const label=document.createElement('span');label.className='record-cover-label';label.textContent='拡大して見る';
       el.replaceChildren(img,label);el.classList.add('has-photo');
     }else{
       el.replaceChildren();
@@ -155,11 +155,206 @@ function scheduleCardThumbnails(container){
 }
 function cardWish(x){return `<article class="entry card"><div><div class="entry-meta">${esc(x.major||'行きたい')} ${x.minor?' / '+esc(x.minor):''}</div><div class="entry-title">${esc(x.title)}</div><span class="pill ${x.status==='visited'?'visited':'wish'}">${x.status==='visited'?'✓ 行った！':x.status==='planning'?'計画中':'行きたい'}</span>${x.place?`<a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer" class="entry-meta">📍 ${esc(x.place)} ↗</a>`:''}<div class="entry-actions">${x.status!=='visited'?`<button class="primary slim" data-stamp="${esc(x.id)}">✓ 行った！</button>`:''}<button class="ghost slim" data-edit-wish="${esc(x.id)}">編集</button><button class="ghost slim" data-delete-wish="${esc(x.id)}">削除</button></div></div></article>`}
 const empty=t=>`<div class="card" style="padding:24px;text-align:center;color:#668292">${esc(t)}</div>`;
-function renderHome(){$('homeRecent').innerHTML=dateSort(state.logs).slice(0,3).map(cardLog).join('')||empty('思い出がまだありません。初めての1件を残してみよう。');scheduleCardThumbnails($('homeRecent'));$('homeWishes').innerHTML=dateSort(state.wishes.filter(x=>x.status!=='visited'),'createdAt').slice(0,2).map(cardWish).join('')||empty('行きたい場所をひとつ登録してみよう。')}
+function homePlaceKey(log){
+  // 同じ場所への複数回訪問はホームでは1枚にまとめる。アルバムは全記録を表示。
+  return [String(log.groupName||log.title||'').trim(),String(log.place||'').trim()].join(' / ').normalize('NFKC').toLocaleLowerCase('ja');
+}
+function homePlaces(limit=5){
+  const picked=[],used=new Set();
+  for(const log of dateSort(state.logs)){
+    const key=homePlaceKey(log);
+    if(!key||used.has(key))continue;
+    used.add(key);picked.push(log);
+    if(picked.length>=limit)break;
+  }
+  return picked;
+}
+function homeMemoryCard(x,index){
+  const date=canonicalVisitDate(x.date)||String(x.date||'');
+  const category=[x.major,x.minor].filter(Boolean).join(' / ');
+  const image=thumbButton(x);
+  return `<article class="memory-tile ${index===0?'memory-tile-feature':'memory-tile-small'}">
+    <div class="memory-tile-picture">${image}<span class="memory-tile-rank">${String(index+1).padStart(2,'0')}</span></div>
+    <div class="memory-tile-info"><div class="memory-tile-meta">${esc(dateText(date))}${category?' · '+esc(category):''}</div>
+      <h3>${esc(x.title||'思い出')}</h3>
+      <button class="memory-tile-open" type="button" data-view="${esc(x.id)}" aria-label="${esc(x.title||'思い出')}の記録を見る">記録を見る <span aria-hidden="true">↗</span></button>
+    </div>
+  </article>`;
+}
+function renderHome(){
+  const recent=homePlaces(5),area=$('homeRecent');
+  area.innerHTML=recent.map(homeMemoryCard).join('')||empty('まだ思い出がありません。最初のよりみちを記録してみましょう。');
+  scheduleCardThumbnails(area);
+  $('homeWishes').innerHTML=dateSort(state.wishes.filter(x=>x.status!=='visited'),'createdAt').slice(0,2).map(cardWish).join('')||empty('行きたい場所をひとつ登録してみよう。');
+}
+
 function filtered(list,search,major){const text=search.trim().toLocaleLowerCase('ja');return list.filter(x=>(!major||x.major===major)&&(!text||[x.title,x.place,x.note,x.reason,x.groupName,x.major,x.minor].some(s=>String(s||'').toLocaleLowerCase('ja').includes(text))))}
+// 検索は旧GAS移行時の大・小カテゴリを含む実際の保存値を使用。記録は変更しない。
+const normCat=v=>String(v??'').trim().normalize('NFKC');
+function logCategoryKey(x){return {major:normCat(x.major),minor:normCat(x.minor)}}
+function matchLogCategory(log,value){
+  if(!value)return true;
+  if(value==='uncategorized')return !logCategoryKey(log).major&&!logCategoryKey(log).minor;
+  if(value.startsWith('major:'))return logCategoryKey(log).major===value.slice(6);
+  if(value.startsWith('minor:')){
+    const [major,minor]=value.slice(6).split('\u0000');
+    const cat=logCategoryKey(log);return cat.major===major&&cat.minor===minor;
+  }
+  return false;
+}
+function visitDateParts(log){
+  const raw=String(log.date||'').trim();
+  const match=raw.match(/^(\d{4})[-/.年](\d{1,2})(?:[-/.月]|$)/);
+  if(!match)return null;
+  const year=Number(match[1]),month=Number(match[2]);
+  return year>=1900&&year<=2100&&month>=1&&month<=12?{year,month}:null;
+}
+// v2.0.8: 2000年からの思い出年表。表示中の記録から組み立て、保存データは変更しない。
+// 過去の「出来事」は既存の思い出記録（日付とカテゴリ）として登録できる。
+const timelineMinYear=2000;
+const timelineMaxYear=Math.max(2100,new Date().getFullYear()+20);
+const calendarState=(()=>{const d=new Date();return {year:d.getFullYear(),month:d.getMonth()+1,day:'',decade:Math.floor(d.getFullYear()/10)*10}})();
+function canonicalVisitDate(value){
+  const match=String(value||'').trim().match(/^(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})(?:日)?(?:\D.*)?$/);
+  if(!match)return '';
+  const year=Number(match[1]),month=Number(match[2]),day=Number(match[3]);
+  const date=new Date(Date.UTC(year,month-1,day));
+  if(year<1||year>timelineMaxYear||date.getUTCFullYear()!==year||date.getUTCMonth()!==month-1||date.getUTCDate()!==day)return '';
+  return `${String(year).padStart(4,'0')}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+function timelineEvents(){
+  const entries=[];
+  for(const log of state.logs){const date=canonicalVisitDate(log.date);if(date)entries.push({date,kind:normCat(log.major)==='人生の出来事'?'life':'memory',id:String(log.id),title:log.title||'思い出',category:[log.major,log.minor].filter(Boolean).join(' / ')})}
+  for(const wish of state.wishes){
+    const isVisited=wish.status==='visited';
+    const date=canonicalVisitDate(isVisited?(wish.visitDate||wish.planDate):wish.planDate);
+    if(date)entries.push({date,kind:'plan',id:String(wish.id),title:wish.title||'行きたい場所',category:isVisited?'訪問スタンプ':'行きたい予定'});
+  }
+  return entries;
+}
+function decadeOf(year){return Math.floor(Number(year)/10)*10}
+function changeCalendarPeriod(year,month,filter='month'){
+  let y=Number(year),m=Number(month);while(m<1){y--;m+=12}while(m>12){y++;m-=12}
+  if(y<timelineMinYear||y>timelineMaxYear)return;
+  calendarState.year=y;calendarState.month=m;calendarState.day='';calendarState.decade=decadeOf(y);
+  if(filter){
+    $('logYear').value=String(y);refreshLogFilterUi();
+    $('logMonth').value=filter==='year'?'':String(m);
+  }
+  renderMemoryCalendar();if(state.tab==='logs')renderLogs();
+}
+function chooseCalendarDay(date){
+  calendarState.day=calendarState.day===date?'':date;
+  $('logYear').value=String(calendarState.year);
+  refreshLogFilterUi();$('logMonth').value=String(calendarState.month);
+  renderMemoryCalendar();if(state.tab==='logs')renderLogs();
+}
+function renderMemoryCalendar(){
+  const year=calendarState.year,month=calendarState.month,decade=calendarState.decade;
+  const events=timelineEvents();
+  const yearly=new Map();
+  for(const item of events){const y=Number(item.date.slice(0,4));yearly.set(y,(yearly.get(y)||0)+1)}
+  const select=$('timelineYear');if(!select.options.length){
+    for(let y=timelineMinYear;y<=timelineMaxYear;y++)select.add(new Option(y+'年',String(y)));
+  }
+  select.value=String(year);
+  $('timelinePrevDecade').disabled=decade<=timelineMinYear;
+  $('timelineNextDecade').disabled=decade+10>timelineMaxYear;
+  $('timelineYears').innerHTML=Array.from({length:10},(_,i)=>{
+    const y=decade+i;if(y>timelineMaxYear)return '';
+    const count=yearly.get(y)||0;
+    return `<button type="button" class="timeline-year ${year===y?'active':''}" data-timeline-year="${y}" aria-pressed="${year===y}"><strong>${y}</strong><small>${count?'📖 '+count+'件':'記録なし'}</small></button>`;
+  }).join('');
+  $('calendarMonthTitle').textContent=`${year}年 ${month}月`;
+  $('calendarPrevMonth').disabled=year===timelineMinYear&&month===1;
+  $('calendarNextMonth').disabled=year===timelineMaxYear&&month===12;
+  const dates=new Map();for(const item of events){if(item.date.slice(0,7)!==`${year}-${String(month).padStart(2,'0')}`)continue;if(!dates.has(item.date))dates.set(item.date,[]);dates.get(item.date).push(item)}
+  const first=new Date(Date.UTC(year,month-1,1)).getUTCDay();
+  const days=new Date(Date.UTC(year,month,0)).getUTCDate();
+  const cells=Array.from({length:first},()=>'<span class="calendar-empty" aria-hidden="true"></span>');
+  for(let day=1;day<=days;day++){
+    const date=`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`,items=dates.get(date)||[];
+    const logs=items.filter(e=>e.kind==='memory').length,life=items.filter(e=>e.kind==='life').length,plans=items.filter(e=>e.kind==='plan').length;
+    const weekday=(first+day-1)%7,nowToday=date===today(),selected=calendarState.day===date;
+    cells.push(`<button type="button" class="calendar-day ${weekday===0?'sunday':weekday===6?'saturday':''} ${nowToday?'today':''} ${selected?'selected':''}" data-calendar-date="${date}" aria-pressed="${selected}" aria-label="${year}年${month}月${day}日、思い出${logs}件、出来事${life}件、予定${plans}件"><b>${day}</b><span class="calendar-day-dots">${logs?`<i class="memory-dot" title="思い出${logs}件"></i>`:''}${life?`<i class="life-dot" title="出来事${life}件"></i>`:''}${plans?`<i class="plan-dot" title="予定${plans}件"></i>`:''}</span>${items.length?`<small>${items.length}件</small>`:''}</button>`);
+  }
+  $('calendarDayGrid').innerHTML=cells.join('');
+  const chosen=calendarState.day;
+  const selectedDate=chosen||`${year}-${String(month).padStart(2,'0')}`;
+  $('calendarSelectedTitle').textContent=chosen?`${year}年${month}月${Number(chosen.slice(-2))}日の記録`:`${year}年${month}月の思い出`;
+  $('calendarClearDay').disabled=!chosen;
+  const selectedEvents=chosen?(dates.get(chosen)||[]):[...dates.values()].flat().sort((a,b)=>b.date.localeCompare(a.date));
+  let html=selectedEvents.slice(0,12).map(item=>{
+    const isMemory=item.kind!=='plan';
+    const action=isMemory?`data-view="${esc(item.id)}"`:`data-edit-wish="${esc(item.id)}"`;
+    return `<button type="button" class="calendar-event ${item.kind==='life'?'life-event':isMemory?'memory-event':'plan-event'}" ${action}><span class="calendar-event-symbol">${item.kind==='life'?'📌':isMemory?'📖':'✦'}</span><span class="calendar-event-info"><strong>${esc(item.title)}</strong><small>${item.date.slice(5).replace('-','/')} · ${esc(item.category||'思い出')}</small></span><span aria-hidden="true">›</span></button>`;
+  }).join('');
+  if(selectedEvents.length>12)html+=`<p class="muted calendar-more">ほか${selectedEvents.length-12}件。下の思い出一覧から確認できます。</p>`;
+  if(!selectedEvents.length)html='<p class="calendar-no-record">この期間にはまだ記録がありません。昔の思い出を追加してみよう。</p>';
+  $('calendarDayEvents').innerHTML=html;
+  $('calendarAddMemory').textContent=chosen?'＋ この日の思い出':'＋ この月の思い出';
+  $('calendarAddLifeEvent').textContent=chosen?'＋ この日の出来事':'＋ この月の出来事';
+}
+$('timelineYear').addEventListener('change',e=>changeCalendarPeriod(Number(e.target.value),calendarState.month,'year'));
+$('timelinePrevDecade').addEventListener('click',()=>{calendarState.decade=Math.max(timelineMinYear,calendarState.decade-10);calendarState.year=calendarState.decade;calendarState.month=1;changeCalendarPeriod(calendarState.year,1,'year')});
+$('timelineNextDecade').addEventListener('click',()=>{calendarState.decade=Math.min(decadeOf(timelineMaxYear),calendarState.decade+10);calendarState.year=calendarState.decade;calendarState.month=1;changeCalendarPeriod(calendarState.year,1,'year')});
+$('timelineYears').addEventListener('click',e=>{const b=e.target.closest('[data-timeline-year]');if(b)changeCalendarPeriod(Number(b.dataset.timelineYear),calendarState.month,'year')});
+$('calendarPrevMonth').addEventListener('click',()=>changeCalendarPeriod(calendarState.year,calendarState.month-1));
+$('calendarNextMonth').addEventListener('click',()=>changeCalendarPeriod(calendarState.year,calendarState.month+1));
+$('calendarToday').addEventListener('click',()=>{const date=today(),y=Number(date.slice(0,4)),m=Number(date.slice(5,7));changeCalendarPeriod(y,m);chooseCalendarDay(date)});
+$('calendarDayGrid').addEventListener('click',e=>{const b=e.target.closest('[data-calendar-date]');if(b)chooseCalendarDay(b.dataset.calendarDate)});
+$('calendarClearDay').addEventListener('click',()=>{calendarState.day='';renderMemoryCalendar();if(state.tab==='logs')renderLogs()});
+$('calendarAddMemory').addEventListener('click',()=>{edit('log');$('fieldDate').value=calendarState.day||`${calendarState.year}-${String(calendarState.month).padStart(2,'0')}-01`});
+$('calendarAddLifeEvent').addEventListener('click',()=>{edit('log');$('fieldDate').value=calendarState.day||`${calendarState.year}-${String(calendarState.month).padStart(2,'0')}-01`;
+ $('fieldMajor').value='人生の出来事';updateMinor();$('dialogTitle').textContent='人生の出来事を記録';});
+function refreshLogFilterUi(){
+  const selectedYear=$('logYear').value,selectedMonth=$('logMonth').value,selectedCat=$('logCategory').value;
+  const dateValues=state.logs.map(visitDateParts).filter(Boolean);
+  const years=[...new Set([...Array.from({length:timelineMaxYear-timelineMinYear+1},(_,i)=>timelineMinYear+i),...dateValues.map(d=>d.year)])].sort((a,b)=>b-a);
+  const year=$('logYear');year.replaceChildren(new Option('すべての年',''));
+  for(const y of years)year.add(new Option(y+'年',String(y)));
+  if(state.logs.some(x=>!visitDateParts(x)))year.add(new Option('日付未設定','unknown'));
+  if([...year.options].some(o=>o.value===selectedYear))year.value=selectedYear;
+  const month=$('logMonth');month.replaceChildren(new Option('すべての月',''));month.disabled=year.value==='unknown';
+  const availableMonths=Array.from({length:12},(_,i)=>i+1);
+  for(const m of availableMonths)month.add(new Option(m+'月',String(m)));
+  if([...month.options].some(o=>o.value===selectedMonth))month.value=selectedMonth;
+  const groups=new Map();let unknown=0;
+  for(const x of state.logs){
+    const {major,minor}=logCategoryKey(x);
+    if(!major&&!minor){unknown++;continue}
+    const groupKey=major;
+    if(!groups.has(groupKey))groups.set(groupKey,{total:0,minors:new Map()});
+    const group=groups.get(groupKey);group.total++;
+    if(minor)group.minors.set(minor,(group.minors.get(minor)||0)+1);
+  }
+  const cat=$('logCategory');cat.replaceChildren(new Option('すべてのカテゴリ（'+state.logs.length+'件）',''));
+  for(const [major,g] of [...groups].sort((a,b)=>a[0].localeCompare(b[0],'ja'))){
+    cat.add(new Option((major||'(大カテゴリ未設定)')+'（'+g.total+'件）','major:'+major));
+    for(const [minor,count] of [...g.minors].sort((a,b)=>a[0].localeCompare(b[0],'ja')))
+      cat.add(new Option('　↳ '+minor+'（'+count+'件）','minor:'+major+'\u0000'+minor));
+  }
+  if(unknown)cat.add(new Option('分類未設定（'+unknown+'件）','uncategorized'));
+  if([...cat.options].some(o=>o.value===selectedCat))cat.value=selectedCat;
+}
+function filteredLogs(){
+  const search=$('logSearch').value.trim().toLocaleLowerCase('ja');
+  const year=$('logYear').value,month=$('logMonth').value,category=$('logCategory').value,selectedDay=calendarState.day;
+  return state.logs.filter(x=>{
+    if(!matchLogCategory(x,category))return false;
+    const d=visitDateParts(x);
+    if(year==='unknown'&&d)return false;
+    if(year&&year!=='unknown'&&(!d||String(d.year)!==year))return false;
+    if(month&&(!d||String(d.month)!==month))return false;
+    if(selectedDay&&canonicalVisitDate(x.date)!==selectedDay)return false;
+    if(search&&![x.title,x.place,x.note,x.reason,x.groupName,x.major,x.minor,x.date].some(s=>String(s||'').toLocaleLowerCase('ja').includes(search)))return false;
+    return true;
+  });
+}
 function groupKey(x){return String(x.groupName||((x.place||'').length>17?x.place:x.title)||x.id).trim().toLocaleLowerCase('ja')}
 function renderLogs(){
-  const a=dateSort(filtered(state.logs,$('logSearch').value,$('logCategory').value),'date',$('logSort').value);
+  const a=dateSort(filteredLogs(),'date',$('logSort').value);
+  $('logFilterCount').textContent=`該当 ${a.length} 件 ／ 全 ${state.logs.length} 件`; 
   const area=$('logsList');
   if($('logView').value==='visit'){
     area.innerHTML=a.map(cardLog).join('')||empty('条件に一致する記録がありません');
@@ -175,9 +370,12 @@ function renderLogs(){
   scheduleCardThumbnails(area);
 }
 function renderWishes(){const a=dateSort(filtered(state.wishes,$('wishSearch').value,$('wishCategory').value).filter(x=>!$('wishStatus').value||x.status===$('wishStatus').value),'createdAt',$('wishSort').value);$('wishesList').innerHTML=a.map(cardWish).join('')||empty('行きたい場所がまだありません')}
-for(const id of ['logSearch','logSort','logView','logCategory'])$(id).addEventListener(id==='logSearch'?'input':'change',renderLogs);
+for(const id of ['logSearch','logSort','logView','logCategory','logYear','logMonth'])$(id).addEventListener(id==='logSearch'?'input':'change',()=>{if(id==='logYear'){$('logMonth').value='';refreshLogFilterUi();if($('logYear').value&&$('logYear').value!=='unknown'){calendarState.year=Number($('logYear').value);calendarState.decade=decadeOf(calendarState.year)}}
+  if(id==='logMonth'&&$('logMonth').value)calendarState.month=Number($('logMonth').value);
+  calendarState.day='';renderLogs()});
+$('logFilterReset').addEventListener('click',()=>{for(const id of ['logSearch','logYear','logMonth','logCategory'])$(id).value='';refreshLogFilterUi();calendarState.day='';renderLogs()});
 for(const id of ['wishSearch','wishSort','wishCategory','wishStatus'])$(id).addEventListener(id==='wishSearch'?'input':'change',renderWishes);
-function refreshCategoryUi(){const majors=Object.keys(categoriesWithHistory());for(const id of ['logCategory','wishCategory'])optionList($(id),majors,'すべてのカテゴリ');const prev=$('fieldMajor').value;optionList($('fieldMajor'),majors);if(prev)$('fieldMajor').value=prev;updateMinor()}
+function refreshCategoryUi(){refreshLogFilterUi();const majors=Object.keys(categoriesWithHistory());optionList($('wishCategory'),majors,'すべてのカテゴリ');const prev=$('fieldMajor').value;optionList($('fieldMajor'),majors);if(prev)$('fieldMajor').value=prev;updateMinor()}
 function updateMinor(){const arr=categoriesWithHistory()[$('fieldMajor').value]||[];optionList($('fieldMinor'),arr,'選択なし')}
 $('fieldMajor').addEventListener('change',updateMinor);
 function showDialog(d){d.showModal();d.scrollTop=0}
@@ -228,13 +426,56 @@ async function showVisit(id){
       const uri=await getPhoto(photo);
       if(seq!==state.visitSeq||!$('visitDialog').open)return;
       if(uri){
-        const im=document.createElement('img');im.src=uri;im.alt='訪問時の写真';im.className='photo-thumb';im.style.cursor='zoom-in';im.addEventListener('click',()=>window.open(uri,'_blank','noopener'));el.replaceWith(im);
+        const btn=document.createElement('button');btn.type='button';btn.className='photo-thumb-button';btn.setAttribute('aria-label','写真を大きく見る');const im=document.createElement('img');im.src=uri;im.alt='訪問時の写真';im.className='photo-thumb';btn.append(im);btn.addEventListener('click',()=>openPhotoViewer(x.id,String(photo.id||photo.ref||'')));el.replaceWith(btn);
       }else{
         el.textContent='元写真（Drive）';const link=document.createElement('a');link.href='https://drive.google.com/drive/u/0/search?q='+encodeURIComponent(String(photo.ref||'').split('/').pop());link.target='_blank';link.rel='noopener noreferrer';link.textContent='Driveで探す ↗';el.appendChild(link);
       }
     }catch(error){el.textContent='写真取得失敗'}
   }
 }
+
+// v2.0.8: 写真は同じ画面の拡大ビューアで表示。Firebaseの写真データは読み取り専用。
+const viewerState={photos:[],index:0,seq:0,title:''};
+function paintPhotoViewer(){
+  const current=viewerState.photos[viewerState.index];
+  const img=$('photoViewerImage'),status=$('photoViewerStatus');
+  if(!current){img.removeAttribute('src');img.classList.add('hidden');status.textContent='表示できる写真がありません';status.classList.remove('hidden');$('photoViewerCount').textContent='';return}
+  img.src=current.uri;img.alt=viewerState.title+'の写真 '+(viewerState.index+1)+'枚目';img.classList.remove('hidden');
+  status.classList.add('hidden');$('photoViewerCount').textContent=(viewerState.index+1)+' / '+viewerState.photos.length+' 枚';
+  $('photoViewerPrev').disabled=viewerState.photos.length<=1;$('photoViewerNext').disabled=viewerState.photos.length<=1;
+}
+function stepPhotoViewer(delta){if(!viewerState.photos.length)return;viewerState.index=(viewerState.index+delta+viewerState.photos.length)%viewerState.photos.length;paintPhotoViewer()}
+async function openPhotoViewer(logId,photoId=''){
+  const x=state.logs.find(log=>String(log.id)===String(logId));if(!x)return;
+  const dialog=$('photoViewerDialog');const seq=++viewerState.seq;
+  viewerState.title=x.title||'思い出';viewerState.photos=[];viewerState.index=0;
+  $('photoViewerTitle').textContent=viewerState.title;
+  $('photoViewerImage').classList.add('hidden');$('photoViewerStatus').textContent='写真を読み込み中…';$('photoViewerStatus').classList.remove('hidden');$('photoViewerCount').textContent='';
+  if(!dialog.open)dialog.showModal();
+  let refs=[];
+  try{refs=await photoRefsForVisit(x)}catch(_){refs=Array.isArray(x.photos)?x.photos:[]}
+  const found=[];const used=new Set();
+  for(const ref of refs){
+    if(seq!==viewerState.seq||!dialog.open)return;
+    if(ref?.type!=='firestore')continue;
+    const id=String(ref.id||ref.ref||'');if(!id||used.has(id))continue;used.add(id);
+    try{const uri=await getPhoto(ref);if(uri)found.push({id,uri})}catch(_){}
+  }
+  if(seq!==viewerState.seq||!dialog.open)return;
+  if(!found.length){dialog.close();if(!$('visitDialog').open)showVisit(logId);return}
+  viewerState.photos=found;
+  const index=found.findIndex(p=>p.id===photoId);viewerState.index=index>=0?index:0;
+  paintPhotoViewer();
+}
+$('photoViewerClose').addEventListener('click',()=>$('photoViewerDialog').close());
+$('photoViewerPrev').addEventListener('click',()=>stepPhotoViewer(-1));
+$('photoViewerNext').addEventListener('click',()=>stepPhotoViewer(1));
+$('photoViewerDialog').addEventListener('close',()=>{viewerState.seq++;viewerState.photos=[];$('photoViewerImage').removeAttribute('src')});
+$('photoViewerDialog').addEventListener('click',e=>{if(e.target===$('photoViewerDialog'))$('photoViewerDialog').close()});
+document.addEventListener('keydown',e=>{if(!$('photoViewerDialog').open)return;if(e.key==='ArrowRight'){e.preventDefault();stepPhotoViewer(1)}if(e.key==='ArrowLeft'){e.preventDefault();stepPhotoViewer(-1)}});
+let viewerTouchX=null;
+$('photoViewerImage').addEventListener('touchstart',e=>{viewerTouchX=e.touches[0]?.clientX??null},{passive:true});
+$('photoViewerImage').addEventListener('touchend',e=>{if(viewerTouchX===null)return;const x=e.changedTouches[0]?.clientX??viewerTouchX;const diff=x-viewerTouchX;viewerTouchX=null;if(Math.abs(diff)>65)stepPhotoViewer(diff<0?1:-1)},{passive:true});
 
 function renderCategories(){const box=$('categoryList');box.innerHTML=Object.entries(state.categories).map(([major,minors])=>`<div class="category-row"><strong>${esc(major)}</strong><button class="ghost" data-remove-cat="${esc(major)}" data-remove-minor="">大を削除</button></div>${minors.map(min=>`<div class="category-row"><span>　↳ ${esc(min)}</span><button class="ghost" data-remove-cat="${esc(major)}" data-remove-minor="${esc(min)}">小を削除</button></div>`).join('')}`).join('')}
 async function saveCats(cat){await setDoc(doc(db,'settings','categories'),{majors:cat,updatedAt:now()})}
@@ -344,5 +585,5 @@ function drawHeader(){const ctx=$('headerCanvas').getContext('2d'),c=$('headerCa
 $('headerZoom').addEventListener('input',e=>{state.headerZoom=Number(e.target.value);drawHeader()});let drag=null;$('headerCanvas').addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};e.target.setPointerCapture(e.pointerId)});$('headerCanvas').addEventListener('pointermove',e=>{if(!drag)return;const factor=$('headerCanvas').width/$('headerCanvas').getBoundingClientRect().width;state.headerX+=(e.clientX-drag.x)*factor;state.headerY+=(e.clientY-drag.y)*factor;drag={x:e.clientX,y:e.clientY};drawHeader()});$('headerCanvas').addEventListener('pointerup',()=>drag=null);$('headerCanvas').addEventListener('pointercancel',()=>drag=null);
 $('saveHeader').addEventListener('click',async()=>{if(!state.headerImg){$('headerError').textContent='写真を選んでください';return}const btn=$('saveHeader');btn.disabled=true;try{const dataUrl=$('headerCanvas').toDataURL('image/jpeg',.7);if(dataUrl.length>850000)throw Error('画像サイズが大きすぎます');await setDoc(doc(db,'media','header'),{dataUrl,updatedAt:now()});$('headerDialog').close();alertMsg('ヘッダー画像を保存しました')}catch(e){$('headerError').textContent=friendlyErr(e)}finally{btn.disabled=false}});
 $('resetHeader').addEventListener('click',async()=>{if(!confirm('ヘッダーを標準に戻しますか？'))return;try{await setDoc(doc(db,'media','header'),{dataUrl:'',updatedAt:now()});alertMsg('標準ヘッダーに戻しました')}catch(e){alertMsg(friendlyErr(e),true)}});
-document.addEventListener('click',e=>{const b=e.target.closest('button,[data-action]');if(!b)return;if(b.dataset.close){$(b.dataset.close)?.close();return}if(b.dataset.action==='new-log'){edit('log');if(state.pendingMapPoint){$('fieldLat').value=state.pendingMapPoint.lat;$('fieldLng').value=state.pendingMapPoint.lng}}if(b.dataset.action==='new-wish'){edit('wish');if(state.pendingMapPoint){$('fieldLat').value=state.pendingMapPoint.lat;$('fieldLng').value=state.pendingMapPoint.lng}}if(b.dataset.view)showVisit(b.dataset.view);if(b.dataset.editLog)edit('log',b.dataset.editLog);if(b.dataset.editWish)edit('wish',b.dataset.editWish);if(b.dataset.stamp)stampWish(b.dataset.stamp);if(b.dataset.deleteWish)deleteWish(b.dataset.deleteWish);if(b.dataset.removeCat!==undefined)removeCat(b.dataset.removeCat,b.dataset.removeMinor)});
+document.addEventListener('click',e=>{const b=e.target.closest('button,[data-action]');if(!b)return;if(b.dataset.close){$(b.dataset.close)?.close();return}if(b.dataset.action==='new-log'){edit('log');if(state.pendingMapPoint){$('fieldLat').value=state.pendingMapPoint.lat;$('fieldLng').value=state.pendingMapPoint.lng}}if(b.dataset.action==='new-wish'){edit('wish');if(state.pendingMapPoint){$('fieldLat').value=state.pendingMapPoint.lat;$('fieldLng').value=state.pendingMapPoint.lng}}if(b.dataset.photoPreview)openPhotoViewer(b.dataset.photoPreview);if(b.dataset.view)showVisit(b.dataset.view);if(b.dataset.editLog)edit('log',b.dataset.editLog);if(b.dataset.editWish)edit('wish',b.dataset.editWish);if(b.dataset.stamp)stampWish(b.dataset.stamp);if(b.dataset.deleteWish)deleteWish(b.dataset.deleteWish);if(b.dataset.removeCat!==undefined)removeCat(b.dataset.removeCat,b.dataset.removeMinor)});
 refreshCategoryUi();drawHeader();
