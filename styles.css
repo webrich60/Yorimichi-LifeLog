@@ -49,3 +49,38 @@
   }
   .bottom-nav button { padding: 7px 8px; font-size: .82rem; }
 }
+
+
+/* v2.0.7: 思い出カードの写真サムネイル、操作ラベルの整理 */
+.entry-photo-card{display:grid;grid-template-columns:112px minmax(0,1fr);align-items:center;gap:15px;padding:13px 15px;min-width:0}
+.entry-photo-card .entry-main,.visit-photo-row .visit-detail{min-width:0}
+.entry-photo-card .entry-title{font-size:1.09rem;line-height:1.5;margin:4px 0 5px;overflow-wrap:anywhere}
+.entry-photo-card .entry-meta,.visit-photo-row .entry-meta{line-height:1.5;overflow-wrap:anywhere}
+.entry-address{display:block;max-width:100%;overflow-wrap:anywhere}
+.entry-cover,.visit-mini-thumb{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;overflow:hidden;border:1.5px solid #c5dbe3;border-radius:16px;background:linear-gradient(145deg,#e6f2f3,#f2f5fa);color:#476c80;text-align:center;box-shadow:none}
+.entry-cover{width:112px;height:106px}
+.entry-cover:hover,.visit-mini-thumb:hover{border-color:#128489;box-shadow:0 0 0 2px #d6ecec}
+.entry-cover .photo-empty-icon,.visit-mini-thumb .photo-empty-icon{font-size:1.85rem;line-height:1.25}
+.entry-cover .photo-empty-text,.visit-mini-thumb .photo-empty-text{font-size:.68rem;font-weight:750;color:#5d7a89}
+.entry-cover img.record-cover-img,.visit-mini-thumb img.record-cover-img{display:block;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
+.record-cover-label{position:absolute;bottom:0;right:0;left:0;padding:5px 2px 4px;background:linear-gradient(transparent,#0c2c42c7);color:#fff;font-size:.72rem;font-weight:850;text-shadow:0 1px 2px #163345;line-height:1.3}
+.entry-photo-card .entry-actions,.visit-photo-row .entry-actions{margin-top:9px;gap:8px}
+.entry-photo-card .entry-actions button,.visit-photo-row .entry-actions button{font-size:.86rem;padding:6px 10px;min-height:35px;border-radius:10px}
+.record-open{background:#117b80}
+.visit-photo-row{display:grid;grid-template-columns:76px minmax(0,1fr);gap:12px;align-items:center;padding:11px 12px}
+.visit-mini-thumb{width:76px;height:75px;border-radius:12px}
+.visit-mini-thumb .photo-empty-icon{font-size:1.6rem}
+.visit-mini-thumb .photo-empty-text{font-size:.62rem}
+.visit-title{display:block;line-height:1.45;overflow-wrap:anywhere}
+.visit-excerpt{font-size:.81rem;line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal!important;margin-top:4px!important}
+@media(max-width:650px){
+ .entry-photo-card{grid-template-columns:88px minmax(0,1fr);gap:10px;padding:11px}
+ .entry-cover{width:88px;height:93px;border-radius:12px}
+ .entry-photo-card .entry-title{font-size:1rem;margin:3px 0 4px}
+ .entry-photo-card .entry-meta{font-size:.76rem}
+ .entry-photo-card .entry-actions{gap:6px;flex-wrap:wrap}
+ .entry-photo-card .entry-actions button{font-size:.79rem;min-height:33px;padding:5px 9px}
+ .visit-photo-row{grid-template-columns:67px minmax(0,1fr);gap:10px;padding:9px}
+ .visit-mini-thumb{height:68px;width:67px}
+ .visit-photo-row .entry-actions button{font-size:.78rem;min-height:31px;padding:4px 8px}
+}

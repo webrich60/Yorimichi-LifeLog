@@ -23,7 +23,7 @@ const friendlyErr=e=>{const c=e?.code||'',m=e?.message||String(e);if(c.includes(
 const dateSort=(arr,which='date',dir='new')=>[...arr].sort((a,b)=>dir==='new'?String(b[which]||b.createdAt||'').localeCompare(String(a[which]||a.createdAt||'')):String(a[which]||a.createdAt||'').localeCompare(String(b[which]||b.createdAt||'')));
 const categoriesWithHistory=()=>{const cats=structuredClone(state.categories);for(const item of [...state.logs,...state.wishes]){const maj=item.major||'その他',min=item.minor||'';if(!cats[maj])cats[maj]=[];if(min&&!cats[maj].includes(min))cats[maj].push(min)}return cats};
 function optionList(select,items,first=''){const current=select.value;select.replaceChildren();if(first){select.add(new Option(first,''))}items.forEach(x=>select.add(new Option(x,x)));if([...select.options].some(x=>x.value===current))select.value=current}
-function resetLogin(){state.user=null;state.logs=[];state.wishes=[];state.photoCache.clear();state.headerPhotoIndex=null;state.visitSeq++;state.loaded={logs:false,wishes:false};for(const un of state.unsubs)try{un()}catch(_){}state.unsubs=[];$('loginPage').classList.remove('hidden');$('appPage').classList.add('hidden');$('bottomNav').classList.add('hidden');$('account').classList.add('hidden')}
+function resetLogin(){state.user=null;state.logs=[];state.wishes=[];state.photoCache.clear();cardThumbnailCache.clear();state.headerPhotoIndex=null;state.visitSeq++;state.loaded={logs:false,wishes:false};for(const un of state.unsubs)try{un()}catch(_){}state.unsubs=[];$('loginPage').classList.remove('hidden');$('appPage').classList.add('hidden');$('bottomNav').classList.add('hidden');$('account').classList.add('hidden')}
 // Firebase Auth の localStorage 容量超過に備える。既存の他アプリの端末データは削除しない。
 // 第1候補: IndexedDB（ブラウザ終了後もログイン状態を保持）
 // 第2候補: sessionStorage（タブを閉じるまで保持）
@@ -70,13 +70,110 @@ function dataUpdated(){syncInfo(state.loaded.logs&&state.loaded.wishes?'● 本�
 const navButtons=[...document.querySelectorAll('[data-tab]')];function showTab(tab){state.tab=tab;document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hidden',el.id!==tab));document.querySelectorAll('.bottom-nav button').forEach(btn=>btn.classList.toggle('active',btn.dataset.tab===tab));render();if(tab==='map')loadMap().catch(e=>{$('mapHint').textContent='地図読み込みに失敗しました: '+friendlyErr(e)})}
 navButtons.forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 function render(){if(!state.user)return;const logs=state.logs,wishes=state.wishes;$('statLogs').textContent=logs.length;$('statWishes').textContent=wishes.filter(x=>x.status!=='visited').length;$('statStamps').textContent=wishes.filter(x=>x.status==='visited').length;$('statPins').textContent=[...logs,...wishes].filter(x=>validCoord(x.lat,x.lng)).length;renderHome();if(state.tab==='logs')renderLogs();if(state.tab==='wishes')renderWishes();if(state.tab==='settings')renderCategories();if(state.tab==='map'&&state.map)renderMapPins()}
-function cardLog(x){return `<article class="entry card"><div><div class="entry-meta">${esc(dateText(x.date))} ・ ${esc(x.major||'記録')} ${x.minor?'/ '+esc(x.minor):''}</div><div class="entry-title">${esc(x.title)}</div>${x.place?`<a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer" class="entry-meta">📍 ${esc(x.place)} ↗</a>`:''}<div class="entry-actions"><button class="ghost slim" data-view="${esc(x.id)}">写真・感想</button><button class="ghost slim" data-edit-log="${esc(x.id)}">編集</button></div></div><button class="ghost slim" data-view="${esc(x.id)}">詳細 ›</button></article>`}
+// 写真付き思い出カード：写真がない記録は中立的なアイコンを表示する。
+// ※ 見た目の改善のみ。写真・記録・ピンの内容は更新しない。
+function thumbButton(x,compact=false){
+  const title=esc(x.title||'思い出');
+  return `<button type="button" class="${compact?'visit-mini-thumb':'entry-cover'}" data-photo-log="${esc(x.id)}" data-view="${esc(x.id)}" aria-label="${title}の思い出を見る"><span class="photo-empty-icon" aria-hidden="true">📷</span><span class="photo-empty-text">写真を確認中</span></button>`;
+}
+function cardLog(x){
+  return `<article class="entry card entry-photo-card">
+    ${thumbButton(x)}
+    <div class="entry-main">
+      <div class="entry-meta">${esc(dateText(x.date))}${x.date?' ・ ':''}${esc(x.major||'思い出')}${x.minor?' / '+esc(x.minor):''}</div>
+      <div class="entry-title">${esc(x.title)}</div>
+      ${x.place?`<a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer" class="entry-meta entry-address">📍 ${esc(x.place)} ↗</a>`:''}
+      <div class="entry-actions"><button class="primary slim record-open" data-view="${esc(x.id)}">記録を見る <span aria-hidden="true">›</span></button><button class="ghost slim" data-edit-log="${esc(x.id)}">編集する</button></div>
+    </div>
+  </article>`;
+}
+function cardGroupedVisit(x){
+  return `<div class="visit-inner visit-photo-row">
+    ${thumbButton(x,true)}
+    <div class="visit-detail">
+      <div class="entry-meta">${esc(dateText(x.date))} / ${esc(x.minor||x.major||'思い出')}</div>
+      <strong class="visit-title">${esc(x.title)}</strong>
+      ${x.note?`<p class="entry-note visit-excerpt">${esc(x.note)}</p>`:''}
+      <div class="entry-actions"><button class="ghost slim" data-view="${esc(x.id)}">記録を見る ›</button><button class="ghost slim" data-edit-log="${esc(x.id)}">編集する</button></div>
+    </div>
+  </div>`;
+}
+// Firestoreの写真ID参照を用いて、表示領域に入ったカードの1枚目のみ遅延取得。
+// 写真が未登録の記録もあるため、カードごとに「写真なし」を明示する。
+const cardThumbnailCache=new Map();
+async function firstPhotoForCard(log){
+  const key=String(log.updatedAt||'')+'|'+JSON.stringify(log.photos||[]);
+  const cached=cardThumbnailCache.get(log.id);
+  if(cached?.key===key)return cached.promise;
+  const promise=(async()=>{
+    const direct=(Array.isArray(log.photos)?log.photos:[]).filter(p=>p?.type==='firestore');
+    for(const photo of direct){try{const uri=await getPhoto(photo);if(uri)return uri}catch(_){/* 別の参照も試す */}}
+    // 古いGASから移したログのように photos が空でも、ownerId から参照を取得する。
+    const refs=await photoRefsForVisit(log);
+    for(const photo of refs.filter(p=>p?.type==='firestore')){
+      try{const uri=await getPhoto(photo);if(uri)return uri}catch(_){/* ほかの写真を確認 */}
+    }
+    return null;
+  })().catch(e=>{cardThumbnailCache.delete(log.id);throw e});
+  cardThumbnailCache.set(log.id,{key,promise});
+  return promise;
+}
+async function fillThumbnail(el){
+  const id=el.dataset.photoLog;
+  const log=state.logs.find(x=>x.id===id);
+  if(!log||!el.isConnected)return;
+  try{
+    const uri=await firstPhotoForCard(log);
+    if(!el.isConnected||el.dataset.photoLog!==id)return;
+    if(uri){
+      const img=document.createElement('img');
+      img.src=uri;img.alt='';img.loading='lazy';img.decoding='async';img.className='record-cover-img';
+      const label=document.createElement('span');label.className='record-cover-label';label.textContent='写真を見る';
+      el.replaceChildren(img,label);el.classList.add('has-photo');
+    }else{
+      el.replaceChildren();
+      const icon=document.createElement('span');icon.className='photo-empty-icon';icon.textContent='📖';icon.setAttribute('aria-hidden','true');
+      const txt=document.createElement('span');txt.className='photo-empty-text';txt.textContent='写真なし';
+      el.append(icon,txt);
+    }
+  }catch(_){
+    if(!el.isConnected)return;
+    el.replaceChildren();
+    const icon=document.createElement('span');icon.className='photo-empty-icon';icon.textContent='📷';icon.setAttribute('aria-hidden','true');
+    const txt=document.createElement('span');txt.className='photo-empty-text';txt.textContent='再確認';
+    el.append(icon,txt);
+  }
+}
+const cardPhotoObserver=typeof IntersectionObserver!=='undefined'?new IntersectionObserver(entries=>{
+  for(const item of entries){if(!item.isIntersecting)continue;cardPhotoObserver.unobserve(item.target);void fillThumbnail(item.target)}
+},{rootMargin:'180px 0px'}):null;
+function scheduleCardThumbnails(container){
+  for(const el of container.querySelectorAll('[data-photo-log]')){
+    if(cardPhotoObserver)cardPhotoObserver.observe(el);
+    else void fillThumbnail(el);
+  }
+}
 function cardWish(x){return `<article class="entry card"><div><div class="entry-meta">${esc(x.major||'行きたい')} ${x.minor?' / '+esc(x.minor):''}</div><div class="entry-title">${esc(x.title)}</div><span class="pill ${x.status==='visited'?'visited':'wish'}">${x.status==='visited'?'✓ 行った！':x.status==='planning'?'計画中':'行きたい'}</span>${x.place?`<a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer" class="entry-meta">📍 ${esc(x.place)} ↗</a>`:''}<div class="entry-actions">${x.status!=='visited'?`<button class="primary slim" data-stamp="${esc(x.id)}">✓ 行った！</button>`:''}<button class="ghost slim" data-edit-wish="${esc(x.id)}">編集</button><button class="ghost slim" data-delete-wish="${esc(x.id)}">削除</button></div></div></article>`}
 const empty=t=>`<div class="card" style="padding:24px;text-align:center;color:#668292">${esc(t)}</div>`;
-function renderHome(){$('homeRecent').innerHTML=dateSort(state.logs).slice(0,3).map(cardLog).join('')||empty('思い出がまだありません。初めての1件を残してみよう。');$('homeWishes').innerHTML=dateSort(state.wishes.filter(x=>x.status!=='visited'),'createdAt').slice(0,2).map(cardWish).join('')||empty('行きたい場所をひとつ登録してみよう。')}
+function renderHome(){$('homeRecent').innerHTML=dateSort(state.logs).slice(0,3).map(cardLog).join('')||empty('思い出がまだありません。初めての1件を残してみよう。');scheduleCardThumbnails($('homeRecent'));$('homeWishes').innerHTML=dateSort(state.wishes.filter(x=>x.status!=='visited'),'createdAt').slice(0,2).map(cardWish).join('')||empty('行きたい場所をひとつ登録してみよう。')}
 function filtered(list,search,major){const text=search.trim().toLocaleLowerCase('ja');return list.filter(x=>(!major||x.major===major)&&(!text||[x.title,x.place,x.note,x.reason,x.groupName,x.major,x.minor].some(s=>String(s||'').toLocaleLowerCase('ja').includes(text))))}
 function groupKey(x){return String(x.groupName||((x.place||'').length>17?x.place:x.title)||x.id).trim().toLocaleLowerCase('ja')}
-function renderLogs(){const a=dateSort(filtered(state.logs,$('logSearch').value,$('logCategory').value),'date',$('logSort').value);if($('logView').value==='visit'){$('logsList').innerHTML=a.map(cardLog).join('')||empty('条件に一致する記録がありません');return}const groups=new Map();for(const x of a){const k=groupKey(x);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(x)}$('logsList').innerHTML=[...groups.values()].map((visits,i)=>{const name=visits[0].groupName||visits[0].title;return `<details class="group card" ${i===0?'open':''}><summary class="group-summary"><span>📍 ${esc(name)}</span><small>${visits.length}回訪問 ▼</small></summary>${visits.map(x=>`<div class="visit-inner"><div class="entry-meta">${esc(dateText(x.date))} / ${esc(x.minor||x.major||'思い出')}</div><strong>${esc(x.title)}</strong>${x.note?`<p class="entry-note">${esc(x.note)}</p>`:''}<div class="entry-actions"><button class="ghost slim" data-view="${esc(x.id)}">📷 写真を見る (${(x.photos||[]).length})</button><button class="ghost slim" data-edit-log="${esc(x.id)}">編集</button></div></div>`).join('')}</details>`}).join('')||empty('条件に一致する記録がありません')}
+function renderLogs(){
+  const a=dateSort(filtered(state.logs,$('logSearch').value,$('logCategory').value),'date',$('logSort').value);
+  const area=$('logsList');
+  if($('logView').value==='visit'){
+    area.innerHTML=a.map(cardLog).join('')||empty('条件に一致する記録がありません');
+    scheduleCardThumbnails(area);
+    return;
+  }
+  const groups=new Map();
+  for(const x of a){const k=groupKey(x);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(x)}
+  area.innerHTML=[...groups.values()].map((visits,i)=>{
+    const name=visits[0].groupName||visits[0].title;
+    return `<details class="group card" ${i===0?'open':''}><summary class="group-summary"><span>📍 ${esc(name)}</span><small>${visits.length}回訪問 ▼</small></summary>${visits.map(cardGroupedVisit).join('')}</details>`;
+  }).join('')||empty('条件に一致する記録がありません');
+  scheduleCardThumbnails(area);
+}
 function renderWishes(){const a=dateSort(filtered(state.wishes,$('wishSearch').value,$('wishCategory').value).filter(x=>!$('wishStatus').value||x.status===$('wishStatus').value),'createdAt',$('wishSort').value);$('wishesList').innerHTML=a.map(cardWish).join('')||empty('行きたい場所がまだありません')}
 for(const id of ['logSearch','logSort','logView','logCategory'])$(id).addEventListener(id==='logSearch'?'input':'change',renderLogs);
 for(const id of ['wishSearch','wishSort','wishCategory','wishStatus'])$(id).addEventListener(id==='wishSearch'?'input':'change',renderWishes);
@@ -87,7 +184,7 @@ function showDialog(d){d.showModal();d.scrollTop=0}
 function edit(kind,id=''){const item=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);$('editForm').reset();$('editKind').value=kind;$('editId').value=id;$('dialogTitle').textContent=id?'記録を編集':kind==='log'?'思い出を記録':'行きたい場所を登録';$('fieldTitle').value=item?.title||'';$('fieldDate').value=item?.date||item?.planDate||today();$('fieldPlace').value=item?.place||'';$('fieldNote').value=item?.note||item?.reason||'';$('fieldLat').value=item?.lat??'';$('fieldLng').value=item?.lng??'';$('fieldGroup').value=item?.groupName||'';$('fieldTrip').value=item?.tripStyle||'未定';$('fieldStatus').value=item?.status||'wish';$('statusArea').classList.toggle('hidden',kind==='log');$('fieldGroup').closest('label').classList.toggle('hidden',kind==='wish');refreshCategoryUi();$('fieldMajor').value=item?.major||Object.keys(state.categories)[0]||'外食・グルメ';updateMinor();$('fieldMinor').value=item?.minor||'';$('editError').textContent='';$('photoPending').textContent='写真を追加すると保存時に自動圧縮します。';showDialog($('editDialog'))}
 async function photoData(file,maxSide=1200,quality=.7){const img=await createImageBitmap(file);try{const scale=Math.min(1,maxSide/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',quality)}finally{img.close()}}
 async function saveEdit(e){e.preventDefault();const kind=$('editKind').value,id=$('editId').value||uniqueId();const title=$('fieldTitle').value.trim();if(!title){$('editError').textContent='名前を入力してください';return}const old=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id)||{};const lat=$('fieldLat').value,lng=$('fieldLng').value;if((lat||lng)&&!validCoord(lat,lng)){$('editError').textContent='緯度・経度が正しくありません';return}const base={...old,id,title,major:$('fieldMajor').value,minor:$('fieldMinor').value,tripStyle:$('fieldTrip').value,place:$('fieldPlace').value.trim(),note:$('fieldNote').value.trim(),lat:lat===''?null:Number(lat),lng:lng===''?null:Number(lng),groupName:$('fieldGroup').value.trim(),updatedAt:now(),createdAt:old.createdAt||now(),photos:[...(old.photos||[])]};if(kind==='log')base.date=$('fieldDate').value||today();else {base.planDate=$('fieldDate').value;base.status=$('fieldStatus').value;base.reason=base.note;if(base.status==='visited'&&!base.visitDate)base.visitDate=today()}
-const button=$('saveButton');button.disabled=true;button.textContent='保存中…';$('editError').textContent='';try{const f=[...$('fieldPhotos').files];if(f.length>10)throw new Error('一度に追加できる写真は10枚までです');for(const file of f){let dataUrl=await photoData(file,1300,.72);if(dataUrl.length>680000)dataUrl=await photoData(file,1000,.55);if(dataUrl.length>780000)throw new Error('画像を小さくできませんでした');const photoId=uniqueId();await setDoc(doc(db,'photos',photoId),{id:photoId,ownerId:id,kind,dataUrl,createdAt:now()});base.photos.push({type:'firestore',id:photoId,ref:photoId})}await setDoc(doc(db,kind==='log'?'logs':'wishes',id),base);$('editDialog').close();alertMsg('✓ 保存しました。Firebaseに反映済み！')}catch(ex){$('editError').textContent='保存できません: '+friendlyErr(ex);alertMsg('保存エラー',true)}finally{button.disabled=false;button.textContent='保存する'}}
+const button=$('saveButton');button.disabled=true;button.textContent='保存中…';$('editError').textContent='';try{const f=[...$('fieldPhotos').files];if(f.length>10)throw new Error('一度に追加できる写真は10枚までです');for(const file of f){let dataUrl=await photoData(file,1300,.72);if(dataUrl.length>680000)dataUrl=await photoData(file,1000,.55);if(dataUrl.length>780000)throw new Error('画像を小さくできませんでした');const photoId=uniqueId();await setDoc(doc(db,'photos',photoId),{id:photoId,ownerId:id,kind,dataUrl,createdAt:now()});base.photos.push({type:'firestore',id:photoId,ref:photoId});cardThumbnailCache.delete(id)}await setDoc(doc(db,kind==='log'?'logs':'wishes',id),base);$('editDialog').close();alertMsg('✓ 保存しました。Firebaseに反映済み！')}catch(ex){$('editError').textContent='保存できません: '+friendlyErr(ex);alertMsg('保存エラー',true)}finally{button.disabled=false;button.textContent='保存する'}}
 $('editForm').addEventListener('submit',saveEdit);$('fieldPhotos').addEventListener('change',()=>{$('photoPending').textContent=[...$('fieldPhotos').files].map(f=>f.name).join('、')||'写真を追加できます'});
 async function stampWish(id){if(!confirm('「行った！」スタンプを押しますか？'))return;const x=state.wishes.find(w=>w.id===id);if(!x)return;try{await setDoc(doc(db,'wishes',id),{...x,status:'visited',visitDate:today(),updatedAt:now()});alertMsg('🎟️ 訪問スタンプを押しました！')}catch(e){alertMsg('保存できません: '+friendlyErr(e),true)}}
 async function deleteWish(id){if(!confirm('この「行きたい場所」を一覧から非表示にしますか？'))return;const x=state.wishes.find(w=>w.id===id);if(!x)return;try{await setDoc(doc(db,'wishes',id),{...x,deleted:true,updatedAt:now()});alertMsg('非表示にしました（データは保持）')}catch(e){alertMsg(friendlyErr(e),true)}}
@@ -196,7 +293,7 @@ async function repairPhotoLinks(){
   finally{button.disabled=false}
 }
 $('repairPhotoLinks').addEventListener('click',repairPhotoLinks);
-$('bulkPhotos').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;if(!confirm(`${files.length}枚の写真を圧縮して取り込みますか？`))return;let done=0,skip=0,failed=0;const all=[...state.logs,...state.wishes];for(const file of files){const parts=file.name.match(/^([0-9a-zA-Z_-]{6,36})__([0-9a-zA-Z_-]{6,36})\./);if(!parts){skip++;continue}const photoId=parts[1],owner=parts[2],item=all.find(x=>x.id===owner);if(!item){skip++;continue}try{let dataUrl=await photoData(file,1200,.68);if(dataUrl.length>680000)dataUrl=await photoData(file,900,.5);if(dataUrl.length>800000)throw Error('画像サイズ超過');await setDoc(doc(db,'photos',photoId),{id:photoId,ownerId:owner,kind:state.logs.some(x=>x.id===owner)?'log':'wish',dataUrl,createdAt:now()});const photos=[...(item.photos||[])];const found=photos.findIndex(p=>p.id===photoId||p.id===photoId.replace(/^legacy_/,'')||(p.type==='legacy'&&p.id===photoId));const ref={type:'firestore',id:photoId,ref:photoId};if(found>=0)photos[found]=ref;else photos.push(ref);await setDoc(doc(db,state.logs.some(x=>x.id===owner)?'logs':'wishes',owner),{...item,photos,updatedAt:now()});item.photos=photos;done++}catch(_){failed++}$('bulkResult').textContent=`処理中 ${done+skip+failed}/${files.length}：成功${done}件、対象外${skip}件、失敗${failed}件`}$('bulkResult').textContent=`完了：成功${done}件、対象外${skip}件、失敗${failed}件。`});
+$('bulkPhotos').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;if(!confirm(`${files.length}枚の写真を圧縮して取り込みますか？`))return;let done=0,skip=0,failed=0;const all=[...state.logs,...state.wishes];for(const file of files){const parts=file.name.match(/^([0-9a-zA-Z_-]{6,36})__([0-9a-zA-Z_-]{6,36})\./);if(!parts){skip++;continue}const photoId=parts[1],owner=parts[2],item=all.find(x=>x.id===owner);if(!item){skip++;continue}try{let dataUrl=await photoData(file,1200,.68);if(dataUrl.length>680000)dataUrl=await photoData(file,900,.5);if(dataUrl.length>800000)throw Error('画像サイズ超過');await setDoc(doc(db,'photos',photoId),{id:photoId,ownerId:owner,kind:state.logs.some(x=>x.id===owner)?'log':'wish',dataUrl,createdAt:now()});const photos=[...(item.photos||[])];const found=photos.findIndex(p=>p.id===photoId||p.id===photoId.replace(/^legacy_/,'')||(p.type==='legacy'&&p.id===photoId));const ref={type:'firestore',id:photoId,ref:photoId};if(found>=0)photos[found]=ref;else photos.push(ref);await setDoc(doc(db,state.logs.some(x=>x.id===owner)?'logs':'wishes',owner),{...item,photos,updatedAt:now()});item.photos=photos;cardThumbnailCache.delete(owner);done++}catch(_){failed++}$('bulkResult').textContent=`処理中 ${done+skip+failed}/${files.length}：成功${done}件、対象外${skip}件、失敗${failed}件`}$('bulkResult').textContent=`完了：成功${done}件、対象外${skip}件、失敗${failed}件。`});
 async function loadLeaflet(){if(window.L)return;state.leafletPromise??=new Promise((resolve,reject)=>{const style=document.createElement('link');style.rel='stylesheet';style.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(style);const sc=document.createElement('script');sc.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';sc.onload=resolve;sc.onerror=()=>reject(new Error('地図サービスを読み込めません'));document.head.appendChild(sc)});await state.leafletPromise}
 async function loadMap(){await loadLeaflet();if(!state.map){state.map=window.L.map('mapCanvas').setView([36.4,137.5],5);window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:18}).addTo(state.map);state.map.on('click',e=>{state.pendingMapPoint=e.latlng;$('mapHint').textContent=`選択した位置：${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)} — 「＋記録」または「行きたい場所」から登録できます。`;})}setTimeout(()=>state.map.invalidateSize(),100);renderMapPins()}
 function renderMapPins(){if(!state.map)return;state.pinLayer?.clearLayers();state.pinLayer=window.L.layerGroup().addTo(state.map);for(const x of [...state.logs,...state.wishes]){if(!validCoord(x.lat,x.lng))continue;const wish=state.wishes.some(w=>w.id===x.id);const color=wish&&x.status!=='visited'?'#dcaa3b':'#128b8d';const mark=window.L.circleMarker([Number(x.lat),Number(x.lng)],{radius:7,color:'#fff',weight:2,fillColor:color,fillOpacity:.98});const popup=document.createElement('div');const title=document.createElement('strong');title.textContent=x.title;popup.append(title,document.createElement('br'));const link=document.createElement('a');link.href=mapsUrl(x.place||x.title);link.target='_blank';link.rel='noopener noreferrer';link.textContent='Googleマップで開く ↗';popup.append(link);mark.bindPopup(popup);mark.addTo(state.pinLayer)}}
