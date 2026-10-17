@@ -168,6 +168,7 @@ function cardWish(x){
       ${x.place?`<a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer" class="entry-meta">📍 ${esc(x.place)} ↗</a>`:''}
       <div class="entry-actions">
         ${visited?'':`<button type="button" class="ghost slim wish-mark-visit" data-stamp="${esc(x.id)}" aria-label="${esc(x.title)}に実際に行ったことを記録する">行った場合に記録する</button>`}
+        <button type="button" class="ghost slim" data-photo-preview="${esc(x.id)}" aria-label="${esc(x.title)}の写真を横スワイプで見る">📷 写真を見る${Array.isArray(x.photos)&&x.photos.length?' ('+x.photos.length+')':''}</button>
         <button type="button" class="ghost slim" data-edit-wish="${esc(x.id)}">編集</button>
         <button type="button" class="ghost slim danger-quiet" data-delete-wish="${esc(x.id)}">削除</button>
       </div>
@@ -403,9 +404,61 @@ function refreshCategoryUi(){refreshLogFilterUi();const majors=Object.keys(categ
 function updateMinor(){const arr=categoriesWithHistory()[$('fieldMajor').value]||[];optionList($('fieldMinor'),arr,'選択なし')}
 $('fieldMajor').addEventListener('change',updateMinor);
 function showDialog(d){d.showModal();d.scrollTop=0}
-function edit(kind,id=''){const item=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);if(id&&!item){alertMsg('編集対象が見つかりません。再読み込みしてください。',true);return}$('editForm').reset();clearLocationCandidates();$('editKind').value=kind;$('editId').value=id;$('dialogTitle').textContent=id?'記録を編集':kind==='log'?'思い出を記録':'行きたい場所を登録';$('fieldTitle').value=item?.title||'';$('fieldDate').value=item?.date||item?.planDate||today();$('fieldPlace').value=item?.place||'';$('fieldNote').value=item?.note||item?.reason||'';$('fieldLat').value=item?.lat??'';$('fieldLng').value=item?.lng??'';$('fieldGroup').value=item?.groupName||'';$('fieldTrip').value=item?.tripStyle||'未定';$('fieldStatus').value=item?.status||'wish';$('statusArea').classList.toggle('hidden',kind==='log');$('fieldGroup').closest('label').classList.toggle('hidden',kind==='wish');refreshCategoryUi();$('fieldMajor').value=item?.major||Object.keys(state.categories)[0]||'外食・グルメ';updateMinor();$('fieldMinor').value=item?.minor||'';$('editError').textContent='';$('photoPending').textContent='写真を追加すると保存時に自動圧縮します。';$('saveButton').textContent=item?'変更を保存':'保存する';$('editDelete').classList.toggle('hidden',!item);$('editDelete').dataset.trashKind=kind;$('editDelete').dataset.trashId=item?.id||'';showDialog($('editDialog'))}
+const MAX_RECORD_PHOTOS=5;
+const photoDraft={files:[],refs:[],previewUrls:[],token:0,ready:true};
+function resetPhotoDraft(){
+  for(const url of photoDraft.previewUrls)URL.revokeObjectURL(url);
+  photoDraft.previewUrls=[];photoDraft.files=[];photoDraft.refs=[];
+  photoDraft.token++;
+  photoDraft.ready=true;
+  $('fieldPhotos').value='';
+}
+function paintPhotoDraft(){
+  const area=$('photoDraftStrip');area.replaceChildren();
+  const existing=photoDraft.refs.length;
+  const total=existing+photoDraft.files.length;
+  $('photoPending').textContent=photoDraft.ready?`${total} / ${MAX_RECORD_PHOTOS}枚（保存済み${existing}枚・今回追加${photoDraft.files.length}枚）`:'保存済みの写真を確認中…';
+  $('fieldPhotos').disabled=!photoDraft.ready||total>=MAX_RECORD_PHOTOS;
+  const add=$('fieldPhotos').closest('.photo-add-label');
+  if(add)add.classList.toggle('photo-limit-reached',$('fieldPhotos').disabled);
+  for(let i=0;i<photoDraft.files.length;i++){
+    const file=photoDraft.files[i],box=document.createElement('div');box.className='photo-draft-item';
+    const img=document.createElement('img');img.src=photoDraft.previewUrls[i];img.alt=`追加予定 ${i+1}枚目`;
+    const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.className='photo-draft-remove';remove.setAttribute('aria-label',`${file.name}を追加候補から外す`);
+    remove.onclick=()=>{URL.revokeObjectURL(photoDraft.previewUrls[i]);photoDraft.previewUrls.splice(i,1);photoDraft.files.splice(i,1);paintPhotoDraft()};
+    box.append(img,remove);area.append(box);
+  }
+  if(!photoDraft.files.length){const p=document.createElement('p');p.className='muted';p.textContent=existing?'保存済みの写真はそのまま残ります。':'まだ写真は追加されていません。';area.append(p)}
+}
+async function loadExistingPhotoCount(record,token){
+  try{
+    const refs=await photoRefsForVisit(record);
+    if(token!==photoDraft.token)return;
+    photoDraft.refs=refs.filter(r=>r?.type==='firestore');
+  }catch(e){
+    if(token!==photoDraft.token)return;
+    // 読み込みに失敗した場合、枚数制限が不確かなので編集時の追加を止める。
+    photoDraft.refs=(record.photos||[]).filter(p=>p?.type==='firestore');
+    photoDraft.ready=false;
+    $('photoPending').textContent='保存済み写真の確認に失敗しました。通信を確認して編集画面を開き直してください。';
+    $('fieldPhotos').disabled=true;
+    return;
+  }
+  if(token!==photoDraft.token)return;
+  photoDraft.ready=true;paintPhotoDraft();
+}
+$('fieldPhotos').addEventListener('change',e=>{
+  if(!photoDraft.ready){e.target.value='';return}
+  const picked=[...e.target.files].filter(f=>f.type.startsWith('image/'));
+  const free=Math.max(0,MAX_RECORD_PHOTOS-photoDraft.refs.length-photoDraft.files.length);
+  const added=picked.slice(0,free);
+  for(const file of added){photoDraft.files.push(file);photoDraft.previewUrls.push(URL.createObjectURL(file))}
+  e.target.value='';paintPhotoDraft();
+  if(picked.length>added.length)alertMsg(`写真は1件につき最大${MAX_RECORD_PHOTOS}枚です。追加できなかった写真が${picked.length-added.length}枚あります。`,true);
+});
+function edit(kind,id=''){const item=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);if(id&&!item){alertMsg('編集対象が見つかりません。再読み込みしてください。',true);return}$('editForm').reset();resetPhotoDraft();clearLocationCandidates();$('editKind').value=kind;$('editId').value=id;$('dialogTitle').textContent=id?'記録を編集':kind==='log'?'思い出を記録':'行きたい場所を登録';$('fieldTitle').value=item?.title||'';$('fieldDate').value=item?.date||item?.planDate||today();$('fieldPlace').value=item?.place||'';$('fieldNote').value=item?.note||item?.reason||'';$('fieldLat').value=item?.lat??'';$('fieldLng').value=item?.lng??'';$('fieldGroup').value=item?.groupName||'';$('fieldTrip').value=item?.tripStyle||'未定';$('fieldStatus').value=item?.status||'wish';$('statusArea').classList.toggle('hidden',kind==='log');$('fieldGroup').closest('label').classList.toggle('hidden',kind==='wish');refreshCategoryUi();$('fieldMajor').value=item?.major||Object.keys(state.categories)[0]||'外食・グルメ';updateMinor();$('fieldMinor').value=item?.minor||'';$('editError').textContent='';paintPhotoDraft();if(item){photoDraft.ready=false;paintPhotoDraft();void loadExistingPhotoCount(item,photoDraft.token)}$('saveButton').textContent=item?'変更を保存':'保存する';$('editDelete').classList.toggle('hidden',!item);$('editDelete').dataset.trashKind=kind;$('editDelete').dataset.trashId=item?.id||'';showDialog($('editDialog'))}
 async function photoData(file,maxSide=1200,quality=.7){const img=await createImageBitmap(file);try{const scale=Math.min(1,maxSide/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',quality)}finally{img.close()}}
-// v2.0.14: 日本の住所に多い郵便番号・空白・ビル名などで検索が失敗しても
+// v2.0.16: 日本の住所に多い郵便番号・空白・ビル名などで検索が失敗しても
 // 地図を直接選んで登録できる。検索サービスの候補は必ず本人が選ぶ。
 let lastGeoRequestAt=0;
 let locationSearching=false;
@@ -439,6 +492,34 @@ function addressSearchVariants(raw,name){
   }
   return variants.slice(0,3);
 }
+// 日本の住所は地理院の住所検索を先に試す。結果は必ず候補を選んで確定する。
+async function gsiAddressSearch(q){
+  const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),10000);
+  try{
+    const res=await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q='+encodeURIComponent(q),{signal:ctrl.signal,headers:{Accept:'application/json'}});
+    if(!res.ok)throw Error('住所検索サービスの応答 '+res.status);
+    const json=await res.json();
+    if(!Array.isArray(json))return [];
+    return json.filter(x=>Array.isArray(x?.geometry?.coordinates)&&x.geometry.coordinates.length>=2)
+      .map(x=>({lat:Number(x.geometry.coordinates[1]),lon:Number(x.geometry.coordinates[0]),display_name:String(x.properties?.title||q)+'（地理院検索：付近の位置の場合があります）'}))
+      .filter(x=>validCoord(x.lat,x.lon)).slice(0,5);
+  }finally{clearTimeout(timeout)}
+}
+async function searchLocationCandidates(raw,name){
+  const queries=addressSearchVariants(raw,name);
+  if(!queries.length&&name)queries.push(name);
+  const errors=[];
+  // 郵便番号・建物名を除去した住所を優先し、地理院の日本向け検索を利用。
+  for(const q of queries.slice(0,3)){
+    try{const list=await gsiAddressSearch(q);if(list.length)return list}catch(e){errors.push(e)}
+  }
+  // 地理院が使えない・見つからないときだけ従来のOSM検索。
+  for(const q of queries.slice(0,2)){
+    try{const list=await nominatimSearch(q);if(list.length)return list}catch(e){errors.push(e)}
+  }
+  if(errors.length&&errors.length>=queries.length*2)throw errors[errors.length-1];
+  return [];
+}
 async function nominatimSearch(q){
   const pause=Math.max(0,1150-(Date.now()-lastGeoRequestAt));
   if(pause)await new Promise(resolve=>setTimeout(resolve,pause));
@@ -466,13 +547,8 @@ async function lookupAddressCoordinates(){
   const btn=$('lookupLocation');clearLocationCandidates();
   btn.disabled=true;locationSearching=true;
   try{
-    const searches=addressSearchVariants(raw,name);
-    let places=[];
-    for(let index=0;index<searches.length;index++){
-      $('locationLookupInfo').textContent=`位置を検索中…（${index+1}/${searches.length}）`;
-      places=await nominatimSearch(searches[index]);
-      if(places.length)break;
-    }
+    $('locationLookupInfo').textContent='日本の住所を検索中… 地理院→OpenStreetMapの順で探します。';
+    const places=await searchLocationCandidates(raw,name);
     if(!places.length){
       $('locationLookupInfo').textContent='住所では見つかりませんでした。下の「地図から位置を選ぶ」で、目的地を直接指定できます。';
       return;
@@ -488,6 +564,7 @@ async function lookupAddressCoordinates(){
       candidate.addEventListener('click',()=>{
         setCandidateCoordinates(lat,lng,'✓ 地図の位置を選択しました。「変更を保存」でピン登録完了です。');
         $('locationCandidates').querySelectorAll('button').forEach(el=>el.classList.toggle('selected',el===candidate));
+        $('locationLookupInfo').textContent='✓ 候補を選択しました。地図で位置を確認するか、下の「変更を保存」でピン登録してください。';
       });
       $('locationCandidates').append(candidate);
     }
@@ -525,7 +602,21 @@ async function openLocationPicker(){
       if(locationPickerMarker)locationPickerMarker.setLatLng([lat,lng]);
       else locationPickerMarker=window.L.marker([lat,lng]).addTo(locationPickerMap);
       $('locationPickerConfirm').disabled=false;
-    }else locationPickerMap.setView([36.2,137.4],5);
+    }else{
+      locationPickerMap.setView([36.2,137.4],5);
+      const address=$('fieldPlace').value.trim(),title=$('fieldTitle').value.trim();
+      if(address||title){
+        $('locationPickerInfo').textContent='住所の近くへ移動しています… 地図をタップするまで位置は確定しません。';
+        void searchLocationCandidates(address,title).then(found=>{
+          if(!dlg.open||locationPickerPoint)return;
+          const first=found[0];
+          if(first&&validCoord(first.lat,first.lon)){
+            locationPickerMap.setView([Number(first.lat),Number(first.lon)],16);
+            $('locationPickerInfo').textContent='住所周辺を表示しました。目的地を地図上でタップし「この位置を使う」を押してください。';
+          }else $('locationPickerInfo').textContent='住所で絞り込めませんでした。地図を拡大して目的地をタップしてください。';
+        }).catch(()=>{if(dlg.open&&!locationPickerPoint)$('locationPickerInfo').textContent='住所検索を利用できません。地図を拡大して目的地をタップしてください。'});
+      }
+    }
     // 初回はモーダル確定後にサイズを計測する必要がある。
     setTimeout(()=>locationPickerMap?.invalidateSize(),160);
   }catch(e){$('locationPickerInfo').textContent='地図を読み込めませんでした。通信を確認してください: '+friendlyErr(e)}
@@ -537,6 +628,14 @@ $('locationPickerConfirm').addEventListener('click',()=>{
   $('locationPickerDialog').close();
 });
 $('locationPickerCancel').addEventListener('click',()=>$('locationPickerDialog').close());
+$('applyCoordinates').addEventListener('click',()=>{
+  const raw=$('coordinatePaste').value.trim();
+  const m=raw.match(/^\s*([+-]?\d+(?:\.\d+)?)\s*[,、\s]+\s*([+-]?\d+(?:\.\d+)?)\s*$/);
+  if(!m){$('locationLookupInfo').textContent='「緯度, 経度」の順に入力してください（例：36.57890, 136.64850）。';return}
+  const a=Number(m[1]),b=Number(m[2]);
+  if(!validCoord(a,b)){$('locationLookupInfo').textContent='緯度・経度が範囲外です。';return}
+  setCandidateCoordinates(a,b,'✓ 座標を反映しました。最後に「変更を保存」を押すとピンが立ちます。');
+});
 $('locationPickerGoogle').addEventListener('click',()=>{
   const q=$('fieldPlace').value.trim()||$('fieldTitle').value.trim();
   window.open(mapsUrl(q),'_blank','noopener,noreferrer');
@@ -553,11 +652,13 @@ async function saveEdit(e){e.preventDefault();const kind=$('editKind').value,id=
 const hadPin=validCoord(old.lat,old.lng);
 const willHavePin=validCoord(base.lat,base.lng);
 const locationChanged=willHavePin&&(!hadPin||Number(old.lat)!==Number(base.lat)||Number(old.lng)!==Number(base.lng));
-const button=$('saveButton');button.disabled=true;button.textContent='保存中…';$('editError').textContent='';try{const f=[...$('fieldPhotos').files];if(f.length>10)throw new Error('一度に追加できる写真は10枚までです');for(const file of f){let dataUrl=await photoData(file,1300,.72);if(dataUrl.length>680000)dataUrl=await photoData(file,1000,.55);if(dataUrl.length>780000)throw new Error('画像を小さくできませんでした');const photoId=uniqueId();await setDoc(doc(db,'photos',photoId),{id:photoId,ownerId:id,kind,dataUrl,createdAt:now()});base.photos.push({type:'firestore',id:photoId,ref:photoId});cardThumbnailCache.delete(id)}await setDoc(doc(db,kind==='log'?'logs':'wishes',id),base);
+const button=$('saveButton');button.disabled=true;button.textContent='保存中…';$('editError').textContent='';try{if(!photoDraft.ready)throw Error('写真枚数の確認中です。少し待ってから保存してください。');
+const f=[...photoDraft.files];
+if(photoDraft.refs.length+f.length>MAX_RECORD_PHOTOS)throw Error('1件の写真は最大5枚です。');for(const file of f){let dataUrl=await photoData(file,1300,.72);if(dataUrl.length>680000)dataUrl=await photoData(file,1000,.55);if(dataUrl.length>780000)throw new Error('画像を小さくできませんでした');const photoId=uniqueId();await setDoc(doc(db,'photos',photoId),{id:photoId,ownerId:id,kind,dataUrl,createdAt:now()});base.photos.push({type:'firestore',id:photoId,ref:photoId});cardThumbnailCache.delete(id)}await setDoc(doc(db,kind==='log'?'logs':'wishes',id),base);
 // Firestoreの書き込み成功後だけ画面の座標を更新。既存データは上書きしない。
 const inMemory=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);
 if(inMemory)Object.assign(inMemory,base);
-$('editDialog').close();
+$('editDialog').close();resetPhotoDraft();
 render(); // ピンと「未登録一覧」の件数を即時更新する
 if(willHavePin&&locationChanged){
   const count=[...state.logs,...state.wishes].filter(x=>!validCoord(x.lat,x.lng)).length;
@@ -565,10 +666,10 @@ if(willHavePin&&locationChanged){
   $('mapRegistrationNotice').classList.remove('hidden');
   // 位置保存後に該当ピンへ視点を移すと、マップ上でも登録が確認しやすい。
   if(state.tab==='map'&&state.map)state.map.setView([Number(base.lat),Number(base.lng)],13);
-  alertMsg('✓ 地図に登録しました。未登録一覧から自動で除外されました。');
+  alertMsg('✓ 位置を保存しました。マップでピンと未登録件数を確認してください。');
 }else if(willHavePin) alertMsg('✓ 記録を保存しました。登録済みの地図ピンは維持されています。');
 else alertMsg('✓ 記録を保存しました。地図ピンはまだ未登録です。');}catch(ex){$('editError').textContent='保存できません: '+friendlyErr(ex);alertMsg('保存エラー',true)}finally{button.disabled=false;button.textContent='保存する'}}
-$('editForm').addEventListener('submit',saveEdit);$('fieldPhotos').addEventListener('change',()=>{$('photoPending').textContent=[...$('fieldPhotos').files].map(f=>f.name).join('、')||'写真を追加できます'});
+$('editForm').addEventListener('submit',saveEdit);
 async function stampWish(id){
   const x=state.wishes.find(w=>w.id===id);
   if(!x||x.status==='visited')return;
@@ -637,7 +738,7 @@ async function showVisit(id){
   const seq=++state.visitSeq;
   $('visitTitle').textContent=x.title;
   const body=$('visitBody');
-  body.innerHTML=`<p><strong>${esc(dateText(x.date))}</strong>　${esc(x.major||'')}/${esc(x.minor||'')}</p><p class="entry-note">${esc(x.note||'（感想なし）')}</p>${x.place?`<p><a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer">📍 Googleマップで開く ↗</a></p>`:''}<h3>この日の写真</h3><div id="visitPhotos" class="photo-strip"><p class="muted">写真を確認しています…</p></div>`;
+  body.innerHTML=`<p><strong>${esc(dateText(x.date))}</strong>　${esc(x.major||'')}/${esc(x.minor||'')}</p><p class="entry-note">${esc(x.note||'（感想なし）')}</p>${x.place?`<p><a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer">📍 Googleマップで開く ↗</a></p>`:''}<h3>この日の写真</h3><p class="photo-swipe-help">写真は左右にスワイプして見られます。タップで拡大します。</p><div id="visitPhotos" class="photo-strip"><p class="muted">写真を確認しています…</p></div>`;
   $('visitEdit').dataset.editLog=x.id;
   $('visitDelete').dataset.trashLog=x.id;
   showDialog($('visitDialog'));
@@ -657,7 +758,7 @@ async function showVisit(id){
       const uri=await getPhoto(photo);
       if(seq!==state.visitSeq||!$('visitDialog').open)return;
       if(uri){
-        const btn=document.createElement('button');btn.type='button';btn.className='photo-thumb-button';btn.setAttribute('aria-label','写真を大きく見る');const im=document.createElement('img');im.src=uri;im.alt='訪問時の写真';im.className='photo-thumb';btn.append(im);btn.addEventListener('click',()=>openPhotoViewer(x.id,String(photo.id||photo.ref||'')));el.replaceWith(btn);
+        const btn=document.createElement('button');btn.type='button';btn.className='photo-thumb-button';btn.setAttribute('aria-label','写真を大きく見る');btn.classList.add('photo-swipe-slide');const im=document.createElement('img');im.src=uri;im.alt='訪問時の写真';im.className='photo-thumb';btn.append(im);btn.addEventListener('click',()=>openPhotoViewer(x.id,String(photo.id||photo.ref||'')));el.replaceWith(btn);
       }else{
         el.textContent='元写真（Drive）';const link=document.createElement('a');link.href='https://drive.google.com/drive/u/0/search?q='+encodeURIComponent(String(photo.ref||'').split('/').pop());link.target='_blank';link.rel='noopener noreferrer';link.textContent='Driveで探す ↗';el.appendChild(link);
       }
@@ -677,9 +778,9 @@ function paintPhotoViewer(){
 }
 function stepPhotoViewer(delta){if(!viewerState.photos.length)return;viewerState.index=(viewerState.index+delta+viewerState.photos.length)%viewerState.photos.length;paintPhotoViewer()}
 async function openPhotoViewer(logId,photoId=''){
-  const x=state.logs.find(log=>String(log.id)===String(logId));if(!x)return;
+  const x=[...state.logs,...state.wishes].find(log=>String(log.id)===String(logId));if(!x)return;
   const dialog=$('photoViewerDialog');const seq=++viewerState.seq;
-  viewerState.title=x.title||'思い出';viewerState.photos=[];viewerState.index=0;
+  viewerState.title=x.title||'場所';viewerState.photos=[];viewerState.index=0;
   $('photoViewerTitle').textContent=viewerState.title;
   $('photoViewerImage').classList.add('hidden');$('photoViewerStatus').textContent='写真を読み込み中…';$('photoViewerStatus').classList.remove('hidden');$('photoViewerCount').textContent='';
   if(!dialog.open)dialog.showModal();
@@ -693,7 +794,7 @@ async function openPhotoViewer(logId,photoId=''){
     try{const uri=await getPhoto(ref);if(uri)found.push({id,uri})}catch(_){}
   }
   if(seq!==viewerState.seq||!dialog.open)return;
-  if(!found.length){dialog.close();if(!$('visitDialog').open)showVisit(logId);return}
+  if(!found.length){$('photoViewerStatus').textContent='この場所にはまだ写真がありません。編集から写真を追加できます。';$('photoViewerStatus').classList.remove('hidden');$('photoViewerPrev').disabled=true;$('photoViewerNext').disabled=true;return}
   viewerState.photos=found;
   const index=found.findIndex(p=>p.id===photoId);viewerState.index=index>=0?index:0;
   paintPhotoViewer();

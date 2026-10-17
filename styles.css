@@ -382,3 +382,22 @@
 #locationPickerInfo{font-weight:750;margin:12px 0 5px;min-height:24px}
 .map-registration-notice{background:#e0f7ea;border:2px solid #31856b;color:#124b3e;border-radius:11px;padding:12px;font-weight:850;margin:10px 0}
 @media(max-width:650px){.map-picker-dialog{padding:12px}.place-lookup button{width:100%}#locationPickerMap{height:53dvh}.map-picker-dialog .actions button{flex:1 1 180px}}
+
+/* v2.0.15: 写真5枚選択・横スクロール・地図操作のスマホ視認性 */
+.photo-upload-panel{grid-column:1/-1;padding:13px;border:1.5px solid #b8d4dc;border-radius:15px;background:#f7fbfc;min-width:0}
+.photo-upload-panel>strong{color:#153d57;font-size:1.05rem}
+.photo-upload-panel>p{margin:5px 0 10px}
+.photo-add-label{background:#e0f0f1;color:#115b61;border:1.5px solid #a9ced1;min-height:43px}
+.photo-add-label.photo-limit-reached{opacity:.55;pointer-events:none}
+.photo-draft-strip{display:flex;overflow-x:auto;gap:10px;padding:10px 0 8px;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;max-width:100%;min-height:64px}
+.photo-draft-item{position:relative;flex:0 0 112px;width:112px;height:112px;scroll-snap-align:start}
+.photo-draft-item img{width:100%;height:100%;object-fit:cover;border-radius:12px;border:1.5px solid #a9c8d2;display:block}
+.photo-draft-remove{position:absolute;right:3px;top:3px;background:#183d55;color:white;border:2px solid white;border-radius:50%;width:30px;height:30px;font-size:21px;line-height:21px;font-weight:bold}
+.photo-swipe-help{font-size:.82rem;font-weight:700;color:#526f80;margin:0 0 4px}
+#visitPhotos.photo-strip{overflow-x:auto;display:flex;gap:10px;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;padding-bottom:14px;-webkit-overflow-scrolling:touch}
+#visitPhotos .photo-swipe-slide{flex:0 0 clamp(170px,65%,260px);width:clamp(170px,65%,260px);height:180px;scroll-snap-align:start;border-radius:14px;border:1.5px solid #c6dce3;padding:0;overflow:hidden;background:#edf4f5}
+#visitPhotos .photo-swipe-slide .photo-thumb{display:block;width:100%;height:100%;object-fit:cover;border:0;border-radius:0}
+.coordinate-paste{grid-column:1/-1;display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:2px}
+.coordinate-paste label{flex:1 1 235px;min-width:0}
+.coordinate-paste button{flex:0 0 auto}
+@media(max-width:650px){.coordinate-paste button{width:100%}.photo-draft-item{width:100px;flex-basis:100px;height:100px}#visitPhotos .photo-swipe-slide{height:165px;flex-basis:70%;width:70%}}
