@@ -401,3 +401,14 @@
 .coordinate-paste label{flex:1 1 235px;min-width:0}
 .coordinate-paste button{flex:0 0 auto}
 @media(max-width:650px){.coordinate-paste button{width:100%}.photo-draft-item{width:100px;flex-basis:100px;height:100px}#visitPhotos .photo-swipe-slide{height:165px;flex-basis:70%;width:70%}}
+
+/* v2.0.17: 地図上で選択してその場でピンを保存 */
+.picker-instruction{font-weight:750;color:#123d57;font-size:1rem;margin-bottom:8px}
+.picker-instruction strong{color:#0b6572}
+.picker-target{font-weight:800;color:#123e57;background:#eaf5f6;padding:10px 12px;border:1px solid #b3d5da;border-radius:12px;overflow-wrap:anywhere}
+.picker-search-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:12px 0}
+.picker-search-row span{color:#355b6a;font-size:.85rem}
+.picker-results{max-height:155px;overflow-y:auto;margin-bottom:8px}
+#locationPickerConfirm{background:#0c7774;color:white;border:2px solid #065d59;font-weight:900;min-height:49px}
+#locationPickerConfirm:disabled{opacity:.55}
+@media(max-width:650px){.picker-search-row button,.map-picker-dialog #locationPickerConfirm{flex:1 1 100%;width:100%}.map-picker-dialog #locationPickerMap{height:45dvh}}

@@ -465,6 +465,39 @@ let locationSearching=false;
 let locationPickerMap=null;
 let locationPickerMarker=null;
 let locationPickerPoint=null;
+let locationPickerTarget=null;
+let locationPickerBusy=false;
+// ピン編集の操作が元のフォームを介さない場合でも、都道府県へ移動できるようにする。
+// この座標は地図の初期表示専用。保存する位置としては使用しない。
+const prefectureViewCenters={
+ '北海道':[43.06,141.35], '青森県':[40.82,140.74], '岩手県':[39.70,141.15], '宮城県':[38.27,140.87],
+ '秋田県':[39.72,140.10], '山形県':[38.25,140.34], '福島県':[37.75,140.47], '茨城県':[36.37,140.47],
+ '栃木県':[36.56,139.88], '群馬県':[36.39,139.06], '埼玉県':[35.86,139.65], '千葉県':[35.61,140.12],
+ '東京都':[35.68,139.76], '神奈川県':[35.45,139.64], '新潟県':[37.91,139.04], '富山県':[36.70,137.21],
+ '石川県':[36.56,136.66], '福井県':[36.06,136.22], '山梨県':[35.66,138.57], '長野県':[36.65,138.18],
+ '岐阜県':[35.42,136.76], '静岡県':[34.98,138.38], '愛知県':[35.18,136.91], '三重県':[34.73,136.51],
+ '滋賀県':[35.00,135.87], '京都府':[35.01,135.76], '大阪府':[34.69,135.50], '兵庫県':[34.69,135.20],
+ '奈良県':[34.69,135.83], '和歌山県':[34.23,135.17], '鳥取県':[35.50,134.24], '島根県':[35.47,133.05],
+ '岡山県':[34.66,133.93], '広島県':[34.40,132.46], '山口県':[34.19,131.47], '徳島県':[34.07,134.56],
+ '香川県':[34.34,134.04], '愛媛県':[33.84,132.77], '高知県':[33.56,133.53], '福岡県':[33.59,130.40],
+ '佐賀県':[33.26,130.30], '長崎県':[32.75,129.88], '熊本県':[32.79,130.74], '大分県':[33.24,131.61],
+ '宮崎県':[31.91,131.42], '鹿児島県':[31.60,130.56], '沖縄県':[26.21,127.68]
+};
+function pickerRecord(){
+ if(!locationPickerTarget?.id)return null;
+ const arr=locationPickerTarget.kind==='log'?state.logs:state.wishes;
+ return arr.find(x=>String(x.id)===String(locationPickerTarget.id))||null;
+}
+function pickerAddress(){return pickerRecord()?.place||$('fieldPlace').value.trim()}
+function pickerTitle(){return pickerRecord()?.title||$('fieldTitle').value.trim()}
+function initialPickerView(address){
+ const compact=normalizedAddress(address);
+ for(const [pref,coordinates] of Object.entries(prefectureViewCenters)){
+   if(compact.includes(pref))return {coordinates,zoom:10,label:pref};
+ }
+ return {coordinates:[36.2,137.4],zoom:5,label:'日本'};
+}
+
 function clearLocationCandidates(){
   $('locationCandidates').replaceChildren();
   $('locationLookupInfo').textContent='';
@@ -485,12 +518,16 @@ function addressSearchVariants(raw,name){
     if(simple!==base)add(simple);
     const jpCompact=base.replace(/[\s　]+/g,'');
     if(jpCompact!==base)add(jpCompact);
+    // 建物名や番地に余分な空白が入る住所は、丁目・番地の前まで落とした候補も試す。
+    const street=jpCompact.replace(/(?:\d+[-丁目番地号].*)$/,'');
+    if(street&&street!==jpCompact)add(street);
+
   }
   if(name){
     const pref=base.match(/(?:東京都|北海道|(?:京都|大阪)府|.{2,3}県)[^市区町村郡]*[市区町村郡]?/);
     add((pref?.[0]?pref[0]+' ':'')+name);
   }
-  return variants.slice(0,3);
+  return variants.slice(0,4);
 }
 // 日本の住所は地理院の住所検索を先に試す。結果は必ず候補を選んで確定する。
 async function gsiAddressSearch(q){
@@ -574,58 +611,124 @@ async function lookupAddressCoordinates(){
 }
 $('lookupLocation').addEventListener('click',lookupAddressCoordinates);
 // 住所検索で見つからない場合の代替：OpenStreetMap の地図上で直接ピンを選択。
-async function openLocationPicker(){
+function markPickerPoint(lat,lng,from='地図で位置を選択'){
+  if(!validCoord(lat,lng)||!locationPickerMap)return;
+  locationPickerPoint={lat:Number(lat),lng:Number(lng)};
+  const coord=[locationPickerPoint.lat,locationPickerPoint.lng];
+  if(locationPickerMarker)locationPickerMarker.setLatLng(coord);
+  else locationPickerMarker=window.L.marker(coord).addTo(locationPickerMap);
+  $('locationPickerConfirm').disabled=false;
+  $('locationPickerInfo').textContent=`✓ ${from}：${lat.toFixed(5)}, ${lng.toFixed(5)}。正しければ下の「ピンを保存」を押してください。`;
+}
+async function searchPickerAddress(){
+  if(locationPickerBusy)return;
+  const btn=$('locationPickerSearch'),results=$('locationPickerResults');
+  const raw=pickerAddress(),name=pickerTitle();
+  results.replaceChildren();
+  locationPickerBusy=true;btn.disabled=true;
+  $('locationPickerInfo').textContent='住所から位置候補を探しています…';
+  try{
+    const places=await searchLocationCandidates(raw,name);
+    if(!places.length){
+      $('locationPickerInfo').textContent='住所から候補が見つかりません。地図を動かして、目的地を直接タップしてください。';
+      return;
+    }
+    $('locationPickerInfo').textContent=`候補が${places.length}件あります。選ぶと地図が移動します。目的地の位置を必ず確認してください。`;
+    for(const p of places){
+      if(!validCoord(p.lat,p.lon))continue;
+      const btn2=document.createElement('button');btn2.type='button';btn2.className='location-candidate';
+      const t=document.createElement('span');t.textContent=String(p.display_name||'場所の候補').slice(0,150);
+      const c=document.createElement('small');c.textContent=`緯度 ${Number(p.lat).toFixed(5)}・経度 ${Number(p.lon).toFixed(5)}`;
+      btn2.append(t,c);
+      btn2.addEventListener('click',()=>{
+        const lat=Number(p.lat),lng=Number(p.lon);
+        locationPickerMap.setView([lat,lng],16);
+        markPickerPoint(lat,lng,'候補の位置を選択');
+        results.querySelectorAll('button').forEach(x=>x.classList.toggle('selected',x===btn2));
+      });
+      results.append(btn2);
+    }
+  }catch(e){
+    $('locationPickerInfo').textContent='住所検索サービスを利用できません。地図を拡大して位置をタップしてください（'+friendlyErr(e)+'）。';
+  }finally{locationPickerBusy=false;btn.disabled=false}
+}
+async function openLocationPicker(kind=null,id=null){
+  locationPickerTarget=(typeof kind==='string'&&['log','wish'].includes(kind)&&id)
+    ? {kind,id,fromList:true}
+    : (($('editDialog').open&&$('editId').value)
+      ? {kind:$('editKind').value,id:$('editId').value,fromList:false}
+      : null);
+  const target=pickerRecord(),label=target?.title||$('fieldTitle').value.trim()||'新しい場所';
+  const address=target?.place||$('fieldPlace').value.trim();
   const dlg=$('locationPickerDialog');
   locationPickerPoint=null;
+  $('locationPickerResults').replaceChildren();
+  $('locationPickerTarget').textContent=`📍 ${label}${address?'　｜　'+address:''}`;
+  $('locationPickerConfirm').textContent=target?'この位置でピンを保存':'この位置を入力欄に反映';
   $('locationPickerConfirm').disabled=true;
-  $('locationPickerInfo').textContent='地図を拡大して目的地をタップしてください。まだ記録は変更されません。';
+  $('locationPickerInfo').textContent='地図をタップしてピンの位置を決めてください。未保存です。';
   dlg.showModal();
   try{
     await loadLeaflet();
+    if(!dlg.open)return;
     if(!locationPickerMap){
       locationPickerMap=window.L.map('locationPickerMap');
       window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
         attribution:'© OpenStreetMap contributors',maxZoom:19
       }).addTo(locationPickerMap);
-      locationPickerMap.on('click',e=>{
-        locationPickerPoint={lat:e.latlng.lat,lng:e.latlng.lng};
-        if(locationPickerMarker)locationPickerMarker.setLatLng(e.latlng);
-        else locationPickerMarker=window.L.marker(e.latlng).addTo(locationPickerMap);
-        $('locationPickerInfo').textContent=`選択位置：${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}。正しければ「この位置を使う」を押してください。`;
-        $('locationPickerConfirm').disabled=false;
-      });
+      locationPickerMap.on('click',e=>markPickerPoint(e.latlng.lat,e.latlng.lng));
     }
-    const lat=Number($('fieldLat').value),lng=Number($('fieldLng').value);
-    if($('fieldLat').value!==''&&$('fieldLng').value!==''&&validCoord(lat,lng)){
-      locationPickerMap.setView([lat,lng],14);
-      locationPickerPoint={lat,lng};
-      if(locationPickerMarker)locationPickerMarker.setLatLng([lat,lng]);
-      else locationPickerMarker=window.L.marker([lat,lng]).addTo(locationPickerMap);
-      $('locationPickerConfirm').disabled=false;
+    // 前回のピンを新しい登録先に持ち込まない。
+    if(locationPickerMarker){locationPickerMap.removeLayer(locationPickerMarker);locationPickerMarker=null;}
+    const lat=target?.lat??$('fieldLat').value,lng=target?.lng??$('fieldLng').value;
+    if(lat!==''&&lng!==''&&validCoord(lat,lng)){
+      locationPickerMap.setView([Number(lat),Number(lng)],15);
+      markPickerPoint(Number(lat),Number(lng),'既存の位置を表示');
     }else{
-      locationPickerMap.setView([36.2,137.4],5);
-      const address=$('fieldPlace').value.trim(),title=$('fieldTitle').value.trim();
-      if(address||title){
-        $('locationPickerInfo').textContent='住所の近くへ移動しています… 地図をタップするまで位置は確定しません。';
-        void searchLocationCandidates(address,title).then(found=>{
-          if(!dlg.open||locationPickerPoint)return;
-          const first=found[0];
-          if(first&&validCoord(first.lat,first.lon)){
-            locationPickerMap.setView([Number(first.lat),Number(first.lon)],16);
-            $('locationPickerInfo').textContent='住所周辺を表示しました。目的地を地図上でタップし「この位置を使う」を押してください。';
-          }else $('locationPickerInfo').textContent='住所で絞り込めませんでした。地図を拡大して目的地をタップしてください。';
-        }).catch(()=>{if(dlg.open&&!locationPickerPoint)$('locationPickerInfo').textContent='住所検索を利用できません。地図を拡大して目的地をタップしてください。'});
-      }
+      const view=initialPickerView(address);
+      locationPickerMap.setView(view.coordinates,view.zoom);
+      $('locationPickerInfo').textContent=`${view.label}付近を表示しています。拡大して目的地をタップし、最後に「ピンを保存」を押してください。`;
     }
-    // 初回はモーダル確定後にサイズを計測する必要がある。
     setTimeout(()=>locationPickerMap?.invalidateSize(),160);
-  }catch(e){$('locationPickerInfo').textContent='地図を読み込めませんでした。通信を確認してください: '+friendlyErr(e)}
+  }catch(e){$('locationPickerInfo').textContent='地図を読み込めません: '+friendlyErr(e)}
 }
-$('locationPickerOpen').addEventListener('click',openLocationPicker);
-$('locationPickerConfirm').addEventListener('click',()=>{
+$('locationPickerOpen').addEventListener('click',()=>openLocationPicker());
+$('locationPickerSearch').addEventListener('click',searchPickerAddress);
+$('locationPickerConfirm').addEventListener('click',async()=>{
   if(!locationPickerPoint)return;
-  setCandidateCoordinates(locationPickerPoint.lat,locationPickerPoint.lng,'✓ 地図で位置を選択しました。「変更を保存」を押すとピンが登録されます。');
-  $('locationPickerDialog').close();
+  const {lat,lng}=locationPickerPoint;
+  const target=locationPickerTarget;
+  const btn=$('locationPickerConfirm');
+  if(!target?.id){
+    setCandidateCoordinates(lat,lng,'✓ 位置を選びました。元の画面の「変更を保存」を押してください。');
+    $('locationPickerDialog').close();
+    if($('editDialog').open)$('editDialog').scrollTop=$('editDialog').scrollHeight;
+    return;
+  }
+  const rec=pickerRecord();
+  if(!rec){$('locationPickerInfo').textContent='保存先の記録が見つかりません。再読み込みしてやり直してください。';return;}
+  btn.disabled=true;btn.textContent='Firebaseへピンを保存中…';
+  $('locationPickerInfo').textContent='Firebaseへ座標を保存しています。画面を閉じずにお待ちください。';
+  try{
+    const updatedAt=now();
+    // 位置情報だけを部分更新。タイトル・住所・写真・訪問状況は変更しない。
+    await updateDoc(doc(db,target.kind==='log'?'logs':'wishes',target.id),{lat,lng,updatedAt});
+    rec.lat=lat;rec.lng=lng;rec.updatedAt=updatedAt;
+    if($('editDialog').open){
+      $('fieldLat').value=String(lat);$('fieldLng').value=String(lng);
+      $('locationLookupInfo').textContent='✓ 地図ピンは保存済み。ほかの編集内容があれば「変更を保存」で保存してください。';
+    }
+    $('locationPickerDialog').close();
+    if(target.fromList&&$('editDialog').open)$('editDialog').close();
+    render();
+    if(state.tab==='map'&&state.map){state.map.setView([lat,lng],15);state.map.invalidateSize();}
+    const count=[...state.logs,...state.wishes].filter(x=>!validCoord(x.lat,x.lng)).length;
+    $('mapRegistrationNotice').textContent=`✓ ${rec.title} をピン登録しました。未登録：残り${count}件。`;
+    $('mapRegistrationNotice').classList.remove('hidden');
+    alertMsg('✓ Firebaseへ位置を保存しました。地図にピンを表示します！');
+  }catch(e){
+    $('locationPickerInfo').textContent='ピンを保存できませんでした: '+friendlyErr(e)+'。位置は保持していますので、再試行してください。';
+  }finally{btn.disabled=false;btn.textContent=target?.id?'この位置でピンを保存':'この位置を入力欄に反映';}
 });
 $('locationPickerCancel').addEventListener('click',()=>$('locationPickerDialog').close());
 $('applyCoordinates').addEventListener('click',()=>{
@@ -883,7 +986,7 @@ function renderUnpinnedPlaces(){
     const small=document.createElement('small');small.textContent=(x._kind==='wish'?'行きたい場所':'思い出')+' ｜ '+(x.place||'住所未登録');
     name.append(strong,small);
     const btn=document.createElement('button');btn.className='ghost slim';btn.type='button';btn.textContent='位置を登録';btn.setAttribute('aria-label',`${x.title||'記録'}の地図位置を登録する`);
-    btn.addEventListener('click',()=>edit(x._kind,x.id));
+    btn.addEventListener('click',()=>openLocationPicker(x._kind,x.id));
     row.append(name,btn);fragment.append(row);
   }
   list.append(fragment);
