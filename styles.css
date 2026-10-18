@@ -412,3 +412,54 @@
 #locationPickerConfirm{background:#0c7774;color:white;border:2px solid #065d59;font-weight:900;min-height:49px}
 #locationPickerConfirm:disabled{opacity:.55}
 @media(max-width:650px){.picker-search-row button,.map-picker-dialog #locationPickerConfirm{flex:1 1 100%;width:100%}.map-picker-dialog #locationPickerMap{height:45dvh}}
+
+/* v2.0.18: カレンダー内のカテゴリ別アルバムへの入口 */
+.calendar-category-jump{padding:17px 19px;margin:15px 0 16px;background:#fff;border:1.5px solid #cfdee5;border-radius:20px}
+.calendar-category-intro{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:13px}
+.calendar-category-intro h2{color:#173d56;font-size:1.12rem;font-weight:900;margin:0 0 3px}
+.calendar-category-intro p{font-size:.81rem;color:#526e7d;margin:0;line-height:1.5}
+.calendar-category-kicker{color:#148086;font-weight:900;font-size:.64rem;letter-spacing:.14em}
+.calendar-all-cats{flex:none;white-space:nowrap;min-height:39px}
+.calendar-category-buttons{display:flex;align-items:stretch;gap:9px;max-width:100%;overflow-x:auto;scroll-snap-type:x proximity;overscroll-behavior-x:contain;padding:1px 2px 8px;scrollbar-width:thin}
+.calendar-cat-chip{flex:0 0 auto;min-width:135px;max-width:200px;min-height:60px;padding:9px 12px;display:flex;align-items:center;gap:7px;border:1.5px solid #bdD7DE;border-radius:13px;background:#f1f8f8;color:#173d56;font-size:.88rem;font-weight:850;scroll-snap-align:start;text-align:left}
+.calendar-cat-chip:hover,.calendar-cat-chip:focus-visible{background:#d9efee;border-color:#07868a}
+.calendar-cat-chip:active{transform:scale(.98)}
+.calendar-cat-symbol{font-size:1.1rem;flex:none;color:#167f83}
+.calendar-cat-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.calendar-cat-count{font-size:.72rem;color:#215d63;white-space:nowrap;margin-left:auto;background:#fff;border-radius:99px;padding:2px 5px}
+.calendar-minor-disclosure{margin-top:4px;border-top:1px solid #e1eaf0;padding-top:8px}
+.calendar-minor-disclosure summary{font-weight:850;color:#236278;font-size:.82rem;cursor:pointer;list-style:none;padding:3px 5px}
+.calendar-minor-disclosure summary::-webkit-details-marker{display:none}
+.calendar-minor-disclosure[open] summary{margin-bottom:8px}
+.calendar-cat-minor{background:#fafbfd;min-height:44px;border-color:#d6e2e8}
+.calendar-cat-minor .calendar-cat-symbol{font-size:.87rem}
+@media(max-width:650px){
+  .calendar-category-jump{padding:12px;margin:10px 0 14px;border-radius:16px}
+  .calendar-category-intro{gap:8px}
+  .calendar-category-intro h2{font-size:.98rem}
+  .calendar-category-intro p{font-size:.73rem}
+  .calendar-all-cats{font-size:.73rem;padding:6px 9px;min-height:36px}
+  .calendar-cat-chip{min-width:123px;min-height:52px;padding:7px 9px;font-size:.82rem;gap:5px}
+  .calendar-cat-count{font-size:.68rem}
+}
+
+
+/* v2.0.18: homepage album access — prominent card, no change to existing gallery. */
+.home-album-entry{display:flex;align-items:center;gap:17px;width:100%;min-height:93px;margin:0 0 16px;padding:17px 23px;text-align:left;border:2px solid #88b8c2;border-radius:19px;color:#103f5a;background:linear-gradient(105deg,#e6f3f5 0%,#f4f9f9 56%,#e7f2f0 100%);box-shadow:0 4px 13px #19485c0b;transition:transform .15s,border-color .15s,box-shadow .15s}
+.home-album-entry:hover{border-color:#187c85;box-shadow:0 7px 18px #19485c20;transform:translateY(-1px)}
+.home-album-entry:focus-visible{outline:3px solid #dda94b;outline-offset:3px}
+.home-album-entry-icon{display:grid;place-items:center;flex:0 0 54px;width:54px;height:54px;border-radius:14px;background:#164b62;color:#fff;font-weight:900;font-size:28px;line-height:1}
+.home-album-entry-body{display:flex;flex:1 1 auto;flex-direction:column;gap:3px;min-width:0}
+.home-album-entry-title{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;font-size:1.21rem;line-height:1.45;font-weight:900}
+.home-album-entry-count{font-size:.76rem;font-weight:800;color:#2b6571;white-space:nowrap}
+.home-album-entry-sub{display:block;font-size:.85rem;color:#3d6276;line-height:1.55;font-weight:600}
+.home-album-entry-arrow{display:grid;place-items:center;flex:0 0 41px;width:41px;height:41px;border-radius:50%;color:white;background:#167c83;font-size:1.42rem;font-weight:900}
+@media(max-width:650px){
+ .home-album-entry{min-height:90px;margin-bottom:12px;padding:12px 13px;gap:10px;border-radius:16px}
+ .home-album-entry-icon{flex-basis:45px;width:45px;height:45px;font-size:25px;border-radius:11px}
+ .home-album-entry-title{font-size:1.08rem;gap:4px 8px}
+ .home-album-entry-count{font-size:.69rem}
+ .home-album-entry-sub{font-size:.74rem;line-height:1.4}
+ .home-album-entry-arrow{flex-basis:34px;width:34px;height:34px;font-size:1.16rem}
+}
+@media(max-width:350px){.home-album-entry{gap:8px;padding:10px}.home-album-entry-icon{flex-basis:40px;width:40px;height:40px}.home-album-entry-arrow{flex-basis:29px;width:29px;height:29px}}

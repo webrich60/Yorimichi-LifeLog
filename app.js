@@ -69,7 +69,7 @@ function connectData(){for(const unsub of state.unsubs)unsub();state.unsubs=[];s
 function dataUpdated(){syncInfo(state.loaded.logs&&state.loaded.wishes?'● 本番接続済み・自動保存有効':'データを同期しています…');refreshCategoryUi();render()}
 const navButtons=[...document.querySelectorAll('[data-tab]')];function showTab(tab){state.tab=tab;document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hidden',el.id!==tab));document.querySelectorAll('.bottom-nav button').forEach(btn=>btn.classList.toggle('active',btn.dataset.tab===tab));render();if(tab==='map')loadMap().catch(e=>{$('mapHint').textContent='地図読み込みに失敗しました: '+friendlyErr(e)})}
 navButtons.forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
-function render(){if(!state.user)return;const logs=state.logs,wishes=state.wishes;$('statLogs').textContent=logs.length;$('statWishes').textContent=wishes.filter(x=>x.status!=='visited').length;$('statStamps').textContent=wishes.filter(x=>x.status==='visited').length;$('statPins').textContent=[...logs,...wishes].filter(x=>validCoord(x.lat,x.lng)).length;renderHome();if(state.tab==='logs')renderLogs();if(state.tab==='calendar')renderMemoryCalendar();if(state.tab==='wishes')renderWishes();if(state.tab==='settings'){renderCategories();renderTrash()}if(state.tab==='map'){if(state.map)renderMapPins();renderUnpinnedPlaces();}}
+function render(){if(!state.user)return;const logs=state.logs,wishes=state.wishes;$('statLogs').textContent=logs.length;$('statWishes').textContent=wishes.filter(x=>x.status!=='visited').length;$('statStamps').textContent=wishes.filter(x=>x.status==='visited').length;$('statPins').textContent=[...logs,...wishes].filter(x=>validCoord(x.lat,x.lng)).length;renderHome();if(state.tab==='logs')renderLogs();if(state.tab==='calendar'){renderMemoryCalendar();renderCalendarCategoryJumps();}if(state.tab==='wishes')renderWishes();if(state.tab==='settings'){renderCategories();renderTrash()}if(state.tab==='map'){if(state.map)renderMapPins();renderUnpinnedPlaces();}}
 // 写真付き思い出カード：写真がない記録は中立的なアイコンを表示する。
 // ※ 見た目の改善のみ。写真・記録・ピンの内容は更新しない。
 function thumbButton(x,compact=false){
@@ -207,6 +207,7 @@ function homeMemoryCard(x,index){
   </article>`;
 }
 function renderHome(){
+  $('homeAlbumCount').textContent=state.logs.length+'件の思い出';
   const recent=homePlaces(5),area=$('homeRecent');
   area.innerHTML=recent.map(homeMemoryCard).join('')||empty('まだ思い出がありません。最初のよりみちを記録してみましょう。');
   scheduleCardThumbnails(area);
@@ -217,6 +218,65 @@ function filtered(list,search,major){const text=search.trim().toLocaleLowerCase(
 // 検索は旧GAS移行時の大・小カテゴリを含む実際の保存値を使用。記録は変更しない。
 const normCat=v=>String(v??'').trim().normalize('NFKC');
 function logCategoryKey(x){return {major:normCat(x.major),minor:normCat(x.minor)}}
+// v2.0.18：カレンダーから既存のアルバム分類へ。分類は読み取りのみ（Firestoreの記録を更新しない）。
+function calendarCategoryIcon(label){
+  if(/観光|旅行|お出かけ|散歩|景色/.test(label))return '🗺️';
+  if(/外食|グルメ|麺|食事|スイーツ|カフェ/.test(label))return '🍽️';
+  if(/宿泊|ホテル|旅館/.test(label))return '🏨';
+  if(/病院|健康|医療/.test(label))return '🏥';
+  if(/人生|家族|出来事/.test(label))return '✨';
+  return '✦';
+}
+function renderCalendarCategoryJumps(){
+  const majors=new Map();let uncategorized=0;
+  for(const log of state.logs){
+    const {major,minor}=logCategoryKey(log);
+    if(!major&&!minor){uncategorized++;continue}
+    if(!majors.has(major))majors.set(major,{count:0,minors:new Map()});
+    const group=majors.get(major);group.count++;
+    if(minor)group.minors.set(minor,(group.minors.get(minor)||0)+1);
+  }
+  const categoryArea=$('calendarCategoryButtons'),minorArea=$('calendarMinorButtons');
+  categoryArea.replaceChildren();minorArea.replaceChildren();
+  const addChip=(area,label,count,value,icon,isMinor=false)=>{
+    const chip=document.createElement('button');chip.type='button';
+    chip.className='calendar-cat-chip'+(isMinor?' calendar-cat-minor':'');
+    chip.dataset.memoryCategory=value;
+    chip.setAttribute('aria-label',label+' '+count+'件の思い出を見る');
+    const symbol=document.createElement('span');symbol.className='calendar-cat-symbol';symbol.textContent=icon;
+    const name=document.createElement('span');name.className='calendar-cat-name';name.textContent=label;
+    const n=document.createElement('span');n.className='calendar-cat-count';n.textContent=count+'件';
+    chip.append(symbol,name,n);area.append(chip);
+  };
+  const groups=[...majors].sort((a,b)=>b[1].count-a[1].count||a[0].localeCompare(b[0],'ja'));
+  for(const [major,g] of groups){
+    addChip(categoryArea,major||'(大カテゴリ未設定)',g.count,'major:'+major,calendarCategoryIcon(major));
+    for(const [minor,count] of [...g.minors].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'ja')))
+      addChip(minorArea,minor,count,'minor:'+major+'\u0000'+minor,'↳',true);
+  }
+  if(uncategorized)addChip(categoryArea,'分類未設定',uncategorized,'uncategorized','📂');
+  if(!groups.length&&!uncategorized){const p=document.createElement('p');p.className='muted';p.textContent='思い出を登録するとカテゴリが表示されます。';categoryArea.append(p)}
+  $('calendarMinorButtons').parentElement.classList.toggle('hidden',!minorArea.querySelector('button'));
+}
+function jumpFromCalendarToCategory(category){
+  // 以前の年・月・キーワード・日付の絞り込みを解除し、カテゴリだけで全期間から探す。
+  $('logSearch').value='';$('logYear').value='';$('logMonth').value='';
+  calendarState.day='';
+  refreshLogFilterUi();
+  $('logCategory').value=category;
+  showTab('logs');
+  window.scrollTo({top:0,behavior:'instant'});
+}
+$('calendarCategoryButtons').addEventListener('click',e=>{
+  const b=e.target.closest('[data-memory-category]');
+  if(b)jumpFromCalendarToCategory(b.dataset.memoryCategory);
+});
+$('calendarMinorButtons').addEventListener('click',e=>{
+  const b=e.target.closest('[data-memory-category]');
+  if(b)jumpFromCalendarToCategory(b.dataset.memoryCategory);
+});
+$('calendarAllCategories').addEventListener('click',()=>jumpFromCalendarToCategory(''));
+
 function matchLogCategory(log,value){
   if(!value)return true;
   if(value==='uncategorized')return !logCategoryKey(log).major&&!logCategoryKey(log).minor;
