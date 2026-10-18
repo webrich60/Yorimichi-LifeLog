@@ -1,6 +1,6 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#183d55"><title>よりみち日和｜思い出と旅の地図</title><link rel="stylesheet" href="./styles.css?v=20261018-218-album"><link rel="preconnect" href="https://www.gstatic.com"></head>
-<body><header class="topbar"><div class="brand"><span class="logo">✿</span><div><strong>よりみち日和</strong><small>LIFELOG · WISH · MAP <span class="brand-version" aria-label="アプリのバージョン">v2.0.18</span></small></div></div><div id="account" class="account hidden"><span id="emailBadge"></span><button class="ghost slim" id="logout">ログアウト</button></div></header>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#183d55"><title>よりみち日和｜思い出と旅の地図</title><link rel="stylesheet" href="./styles.css?v=20261018-219-video"><link rel="preconnect" href="https://www.gstatic.com"></head>
+<body><header class="topbar"><div class="brand"><span class="logo">✿</span><div><strong>よりみち日和</strong><small>LIFELOG · WISH · MAP <span class="brand-version" aria-label="アプリのバージョン">v2.0.19</span></small></div></div><div id="account" class="account hidden"><span id="emailBadge"></span><button class="ghost slim" id="logout">ログアウト</button></div></header>
 <main>
 <section id="loginPage" class="login-panel card"><div class="logo big">✿</div><h1>よりみち日和</h1><p>あの日の思い出も、これからの楽しみも。</p><button id="login" class="primary full">Googleでログイン</button><p class="muted">自分専用のライフログ。記録はFirebaseに保存されます。</p><p id="loginError" class="error" role="alert"></p></section>
 <section id="appPage" class="hidden">
@@ -65,7 +65,7 @@
 <section id="wishes" class="view hidden"><div class="section-heading"><h1>行きたい場所</h1><button class="primary slim" data-action="new-wish">＋ 追加</button></div><div class="toolbar"><input id="wishSearch" type="search" placeholder="行ってみたい場所を検索"><select id="wishSort" aria-label="並び順"><option value="new">新しい順</option><option value="old">古い順</option></select><select id="wishCategory" aria-label="カテゴリで絞る"><option value="">すべてのカテゴリ</option></select><select id="wishStatus" aria-label="訪問状態"><option value="">すべて</option><option value="wish">行きたい</option><option value="planning">計画中</option><option value="visited">✓ 訪問済み</option></select></div><div id="wishesList" class="cards"></div></section>
 <section id="map" class="view hidden"><div class="section-heading"><h1>思い出の地図</h1><button class="ghost slim" id="resetMap">日本全体</button></div><p class="muted">青緑＝行った場所　金色＝行きたい場所。地図を押して新しい場所を登録できます。</p><div id="mapCanvas" role="region" aria-label="日本地図"></div><div class="map-legend"><span>● 訪問済み</span><span>● 行きたい</span></div><p id="mapHint" class="muted"></p>
 <aside class="map-unpinned card" aria-labelledby="mapUnpinnedHeading"><div class="map-unpinned-head"><h2 id="mapUnpinnedHeading">📍 地図に未登録の場所 <span id="mapUnpinnedCount">0件</span></h2><p>「位置を登録」で地図を開き、場所をタップしてその場で保存できます。住所検索に失敗しても登録可能です。</p></div><p id="mapRegistrationNotice" class="map-registration-notice hidden" role="status" aria-live="polite"></p><div id="mapUnpinnedList"></div></aside></section>
-<section id="settings" class="view hidden"><div class="section-heading"><h1>設定とデータ管理</h1></div><p class="version-info">よりみち日和 <strong>v2.0.18</strong>　｜　アルバムカード・カレンダーのカテゴリ導線・地図ピン・写真5枚</p>
+<section id="settings" class="view hidden"><div class="section-heading"><h1>設定とデータ管理</h1></div><p class="version-info">よりみち日和 <strong>v2.0.19</strong>　｜　アルバム・地図ピン・写真5枚・Google Drive動画</p>
 <div class="settings-grid"><article class="card settings-card"><h2>📷 スマホ用ヘッダー</h2><p>お気に入りの写真を横長に切り抜いて設定。指で移動・拡大できます。</p><div class="actions"><button class="primary" id="changeHeader">写真を選ぶ</button><button class="ghost" id="resetHeader">標準に戻す</button></div></article>
 <article class="card settings-card"><h2>🏷️ 大・小カテゴリ</h2><div id="categoryList"></div><div class="cat-editor"><input id="newMajor" placeholder="大カテゴリ名"><input id="newMinor" placeholder="小カテゴリ名（任意）"><button id="addCat" class="primary">カテゴリを追加</button></div><p class="muted">削除しても過去の記録や写真は消えません。</p></article>
 <article class="card settings-card"><h2>📦 移行とバックアップ</h2><p>旧GASから書き出したJSONを読み込みます。同じIDは重複追加しません。</p><div class="actions"><label class="file-button primary">旧データJSONを選ぶ<input id="jsonImport" type="file" accept=".json,application/json" hidden></label><button id="exportJson" class="ghost">JSONを書き出す</button></div><p id="importResult" class="muted"></p></article>
@@ -87,13 +87,35 @@
   </label>
   <p id="photoPending" class="muted" role="status" aria-live="polite">0 / 5枚</p>
   <div id="photoDraftStrip" class="photo-draft-strip" aria-label="追加する写真の確認"></div>
-</div></div><div class="actions edit-bottom-actions"><button type="button" id="editDelete" class="ghost danger-quiet hidden" data-trash-kind="" data-trash-id="">🗑 ゴミ箱へ</button><span class="edit-actions-spacer"></span><button type="button" class="ghost" data-close="editDialog">キャンセル</button><button class="primary" type="submit" id="saveButton">変更を保存</button></div><p id="editError" class="error"></p></form></dialog>
+</div>
+<section class="wide video-upload-panel" aria-label="動画の添付">
+  <div class="video-panel-heading"><strong>🎬 動画を添付する</strong><small>動画はGoogle Driveへ保存・写真は従来どおり</small></div>
+  <p class="muted">MP4・MOVなどの動画を選択（1回につき1本・1件最大3本／250MBまで）。初回はGoogle Driveの許可画面が開きます。</p>
+  <label class="file-button ghost video-add-label" for="fieldVideo">＋ 動画を選ぶ
+    <input id="fieldVideo" type="file" accept="video/*,.mp4,.mov,.m4v,.webm" hidden>
+  </label>
+  <div id="videoDraftInfo" class="video-draft-info" role="status" aria-live="polite">動画は未選択です。</div>
+  <details class="video-link-fallback"><summary>Driveにある動画のリンクを貼る場合はこちら</summary>
+    <label>Google Driveの共有リンク（自分だけの非公開でOK）
+      <input id="fieldVideoDriveUrl" type="url" inputmode="url" placeholder="https://drive.google.com/file/d/動画ID/view">
+    </label>
+    <p class="muted">動画の直接アップロードが利用できない場合は、Google Driveへ先に動画を保存して、その動画のリンクを貼ってください。</p>
+  </details>
+  <div id="videoStoredList" class="video-stored-list" aria-label="保存済みの動画"></div>
+  <p id="videoUploadProgress" class="muted video-progress" role="status" aria-live="polite"></p>
+</section></div><div class="actions edit-bottom-actions"><button type="button" id="editDelete" class="ghost danger-quiet hidden" data-trash-kind="" data-trash-id="">🗑 ゴミ箱へ</button><span class="edit-actions-spacer"></span><button type="button" class="ghost" data-close="editDialog">キャンセル</button><button class="primary" type="submit" id="saveButton">変更を保存</button></div><p id="editError" class="error"></p></form></dialog>
 <dialog id="locationPickerDialog" class="dialog map-picker-dialog" aria-label="地図上で位置を選ぶ"><div class="modal-head"><h2>🗺️ 地図から位置を選ぶ</h2><button class="icon-button" id="locationPickerCancel" type="button" aria-label="閉じる">×</button></div><p class="muted picker-instruction">①地図を拡大 → ②場所をタップ → ③<strong>「この位置でピンを保存」</strong>。ほかの編集は不要です。</p>
 <p id="locationPickerTarget" class="picker-target"></p>
 <div class="picker-search-row"><button type="button" id="locationPickerSearch" class="ghost slim">住所で候補を探す</button><span>見つからなくても地図のタップで位置を決められます。</span></div>
 <div id="locationPickerResults" class="location-candidates picker-results"></div>
 <div id="locationPickerMap" aria-label="位置を選ぶ地図"></div><p id="locationPickerInfo" class="muted" role="status"></p><div class="actions end"><button id="locationPickerGoogle" class="ghost" type="button">Googleマップで場所を確認 ↗</button><button id="locationPickerConfirm" class="primary" type="button" disabled>この位置でピンを保存</button></div></dialog>
 <dialog id="visitDialog" class="dialog"><div class="modal-head"><h2 id="visitTitle">訪問記録</h2><button class="icon-button" data-close="visitDialog" aria-label="閉じる">×</button></div><div id="visitBody"></div><div class="actions visit-bottom-actions"><button class="ghost slim danger-quiet" type="button" id="visitDelete" data-trash-log="">🗑 削除</button><button class="primary slim" type="button" id="visitEdit" data-edit-log="">✎ 編集する</button></div></dialog>
+<dialog id="videoViewerDialog" class="dialog video-player-dialog" aria-label="保存した動画を見る">
+  <div class="modal-head"><h2 id="videoViewerTitle">動画を再生</h2><button class="icon-button" type="button" id="videoViewerClose" aria-label="閉じる">×</button></div>
+  <div class="video-frame-wrap"><iframe id="videoViewerFrame" title="Google Driveの動画" allow="autoplay; fullscreen" referrerpolicy="no-referrer" loading="lazy"></iframe></div>
+  <p class="muted">動画が表示されない場合は、下の「Google Driveで開く」を使ってください。公開共有は不要です。</p>
+  <a id="videoViewerOpenDrive" href="#" class="ghost video-drive-link" target="_blank" rel="noopener noreferrer">↗ Google Driveで開く</a>
+</dialog>
 <dialog id="photoViewerDialog" class="photo-viewer" aria-label="写真の拡大表示">
   <div class="photo-viewer-head"><div class="photo-viewer-title" id="photoViewerTitle"></div><button class="photo-viewer-close" id="photoViewerClose" type="button" aria-label="閉じる">×</button></div>
   <div class="photo-viewer-main"><button type="button" id="photoViewerPrev" class="photo-viewer-arrow" aria-label="前の写真">‹</button><div class="photo-viewer-stage"><img id="photoViewerImage" alt="拡大した思い出の写真"><p id="photoViewerStatus" role="status">読み込み中…</p></div><button type="button" id="photoViewerNext" class="photo-viewer-arrow" aria-label="次の写真">›</button></div>
@@ -101,4 +123,4 @@
 </dialog>
 <dialog id="headerDialog" class="dialog"><div class="modal-head"><h2>写真ヘッダースタジオ</h2><button class="icon-button" data-close="headerDialog" aria-label="閉じる">×</button></div><p class="muted">思い出の写真または新しい写真を選び、横長に切り抜いて保存します。</p><label class="file-button ghost">スマホ・PCの写真を選ぶ<input id="headerFile" type="file" accept="image/*" hidden></label><input id="headerPhotoSearch" type="search" placeholder="思い出・お店・写真を検索"><div id="headerPhotoChoices" class="photo-choices"></div><canvas id="headerCanvas" width="880" height="352" aria-label="切り抜きプレビュー"></canvas><label>拡大率 <input id="headerZoom" type="range" min="1" max="3" step="0.02" value="1"></label><div class="actions end"><button class="primary" id="saveHeader" type="button">この写真で保存</button></div><p id="headerError" class="error"></p></dialog>
 <div id="toast" class="toast hidden" role="status"></div>
-<script type="module" src="./app.js?v=20261018-218-album"></script></body></html>
+<script type="module" src="./app.js?v=20261018-219-video"></script></body></html>

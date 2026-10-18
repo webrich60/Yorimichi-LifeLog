@@ -1,5 +1,5 @@
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js';
-import {getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged,setPersistence,indexedDBLocalPersistence,browserSessionPersistence,inMemoryPersistence} from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js';
+import {getAuth,GoogleAuthProvider,signInWithPopup,reauthenticateWithPopup,signOut,onAuthStateChanged,setPersistence,indexedDBLocalPersistence,browserSessionPersistence,inMemoryPersistence} from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js';
 import {getFirestore,collection,doc,getDoc,getDocs,onSnapshot,query,where,orderBy,setDoc,updateDoc,writeBatch,runTransaction,serverTimestamp} from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
 
 // FirebaseのWeb設定は公開用識別情報。データの保護は必ず firestore.rules で実施します。
@@ -23,7 +23,7 @@ const friendlyErr=e=>{const c=e?.code||'',m=e?.message||String(e);if(c.includes(
 const dateSort=(arr,which='date',dir='new')=>[...arr].sort((a,b)=>dir==='new'?String(b[which]||b.createdAt||'').localeCompare(String(a[which]||a.createdAt||'')):String(a[which]||a.createdAt||'').localeCompare(String(b[which]||b.createdAt||'')));
 const categoriesWithHistory=()=>{const cats=structuredClone(state.categories);if(!cats['人生の出来事'])cats['人生の出来事']=['家族','仕事','挑戦','転機・節目','その他'];for(const item of [...state.logs,...state.wishes]){const maj=item.major||'その他',min=item.minor||'';if(!cats[maj])cats[maj]=[];if(min&&!cats[maj].includes(min))cats[maj].push(min)}return cats};
 function optionList(select,items,first=''){const current=select.value;select.replaceChildren();if(first){select.add(new Option(first,''))}items.forEach(x=>select.add(new Option(x,x)));if([...select.options].some(x=>x.value===current))select.value=current}
-function resetLogin(){state.user=null;state.logs=[];state.wishes=[];state.trashedLogs=[];state.trashedWishes=[];state.photoCache.clear();cardThumbnailCache.clear();state.headerPhotoIndex=null;state.visitSeq++;state.loaded={logs:false,wishes:false};for(const un of state.unsubs)try{un()}catch(_){}state.unsubs=[];$('loginPage').classList.remove('hidden');$('appPage').classList.add('hidden');$('bottomNav').classList.add('hidden');$('account').classList.add('hidden')}
+function resetLogin(){driveVideoToken=null;driveVideoTokenUntil=0;state.user=null;state.logs=[];state.wishes=[];state.trashedLogs=[];state.trashedWishes=[];state.photoCache.clear();cardThumbnailCache.clear();state.headerPhotoIndex=null;state.visitSeq++;state.loaded={logs:false,wishes:false};for(const un of state.unsubs)try{un()}catch(_){}state.unsubs=[];$('loginPage').classList.remove('hidden');$('appPage').classList.add('hidden');$('bottomNav').classList.add('hidden');$('account').classList.add('hidden')}
 // Firebase Auth の localStorage 容量超過に備える。既存の他アプリの端末データは削除しない。
 // 第1候補: IndexedDB（ブラウザ終了後もログイン状態を保持）
 // 第2候補: sessionStorage（タブを閉じるまで保持）
@@ -168,6 +168,7 @@ function cardWish(x){
       ${x.place?`<a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer" class="entry-meta">📍 ${esc(x.place)} ↗</a>`:''}
       <div class="entry-actions">
         ${visited?'':`<button type="button" class="ghost slim wish-mark-visit" data-stamp="${esc(x.id)}" aria-label="${esc(x.title)}に実際に行ったことを記録する">行った場合に記録する</button>`}
+        ${Array.isArray(x.videos)&&x.videos.some(videoDriveId)?`<button type="button" class="ghost slim" data-wish-videos="${esc(x.id)}">🎬 動画を見る (${x.videos.length})</button>`:''}
         <button type="button" class="ghost slim" data-photo-preview="${esc(x.id)}" aria-label="${esc(x.title)}の写真を横スワイプで見る">📷 写真を見る${Array.isArray(x.photos)&&x.photos.length?' ('+x.photos.length+')':''}</button>
         <button type="button" class="ghost slim" data-edit-wish="${esc(x.id)}">編集</button>
         <button type="button" class="ghost slim danger-quiet" data-delete-wish="${esc(x.id)}">削除</button>
@@ -516,7 +517,122 @@ $('fieldPhotos').addEventListener('change',e=>{
   e.target.value='';paintPhotoDraft();
   if(picked.length>added.length)alertMsg(`写真は1件につき最大${MAX_RECORD_PHOTOS}枚です。追加できなかった写真が${picked.length-added.length}枚あります。`,true);
 });
-function edit(kind,id=''){const item=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);if(id&&!item){alertMsg('編集対象が見つかりません。再読み込みしてください。',true);return}$('editForm').reset();resetPhotoDraft();clearLocationCandidates();$('editKind').value=kind;$('editId').value=id;$('dialogTitle').textContent=id?'記録を編集':kind==='log'?'思い出を記録':'行きたい場所を登録';$('fieldTitle').value=item?.title||'';$('fieldDate').value=item?.date||item?.planDate||today();$('fieldPlace').value=item?.place||'';$('fieldNote').value=item?.note||item?.reason||'';$('fieldLat').value=item?.lat??'';$('fieldLng').value=item?.lng??'';$('fieldGroup').value=item?.groupName||'';$('fieldTrip').value=item?.tripStyle||'未定';$('fieldStatus').value=item?.status||'wish';$('statusArea').classList.toggle('hidden',kind==='log');$('fieldGroup').closest('label').classList.toggle('hidden',kind==='wish');refreshCategoryUi();$('fieldMajor').value=item?.major||Object.keys(state.categories)[0]||'外食・グルメ';updateMinor();$('fieldMinor').value=item?.minor||'';$('editError').textContent='';paintPhotoDraft();if(item){photoDraft.ready=false;paintPhotoDraft();void loadExistingPhotoCount(item,photoDraft.token)}$('saveButton').textContent=item?'変更を保存':'保存する';$('editDelete').classList.toggle('hidden',!item);$('editDelete').dataset.trashKind=kind;$('editDelete').dataset.trashId=item?.id||'';showDialog($('editDialog'))}
+// v2.0.19: 動画はFirestoreに本体を保存せず、Google DriveへOAuthでアップロードする。
+// Firebaseには動画のDriveファイルID・名称などの参照情報だけを保持する。
+const MAX_RECORD_VIDEOS=3;
+const MAX_VIDEO_BYTES=250*1024*1024;
+const DRIVE_FILE_SCOPE='https://www.googleapis.com/auth/drive.file';
+let driveVideoToken=null,driveVideoTokenUntil=0;
+const videoDraft={file:null,existing:[],uploaded:null};
+const videoDriveId=entry=>{const id=String(entry?.id||entry?.driveId||'');return /^[\w-]{10,160}$/.test(id)?id:''};
+const videoDriveUrl=id=>`https://drive.google.com/file/d/${encodeURIComponent(id)}/view`;
+const videoDrivePreview=id=>`https://drive.google.com/file/d/${encodeURIComponent(id)}/preview`;
+const videoSizeText=size=>Number(size)>=1024*1024?`${(Number(size)/1024/1024).toFixed(1)} MB`:`${Math.max(1,Math.round(Number(size)/1024))} KB`;
+function videoApiError(status,body=''){
+  if(status===401)return new Error('Google Driveの認証期限が切れました。保存をもう一度押して許可してください。');
+  if(status===403)return new Error('Google Driveへのアクセスが許可されていません。Google Cloudの「Google Drive API」が有効か、ログインとDrive利用許可を確認してください。');
+  if(status===400)return new Error('動画のアップロードが拒否されました。ファイル形式・サイズとDriveの空き容量を確認してください。');
+  if(status===404)return new Error('Google Driveへの保存先が見つかりません。再度お試しください。');
+  return new Error(`Google Driveの保存でエラーが発生しました（HTTP ${status}）。 ${String(body).slice(0,80)}`);
+}
+function driveIdFromLink(value){
+  const str=String(value||'').trim();if(!str)return '';
+  try{
+    const url=new URL(str);
+    if(url.hostname!=='drive.google.com'||url.protocol!=='https:')return '';
+    const fromPath=url.pathname.match(/\/file\/d\/([\w-]{10,160})(?:\/|$)/);
+    const id=fromPath?.[1]||(url.pathname==='/open'?url.searchParams.get('id'):'');
+    return videoDriveId({id});
+  }catch(_){return ''}
+}
+function videoMime(file){
+  if(file.type.startsWith('video/'))return file.type;
+  if(/\.mp4$/i.test(file.name))return 'video/mp4';
+  if(/\.mov$/i.test(file.name))return 'video/quicktime';
+  if(/\.m4v$/i.test(file.name))return 'video/x-m4v';
+  if(/\.webm$/i.test(file.name))return 'video/webm';
+  return '';
+}
+function paintVideoDraft(){
+  const info=$('videoDraftInfo'),stored=$('videoStoredList');
+  info.replaceChildren();stored.replaceChildren();
+  if(videoDraft.file){
+    const entry=document.createElement('div');entry.className='video-file-choice';
+    const text=document.createElement('span');text.textContent=`🎬 ${videoDraft.file.name}（${videoSizeText(videoDraft.file.size)}）`;
+    const remove=document.createElement('button');remove.type='button';remove.className='ghost slim';remove.textContent='選択を外す';remove.addEventListener('click',()=>{videoDraft.file=null;videoDraft.uploaded=null;$('fieldVideo').value='';paintVideoDraft()});
+    entry.append(text,remove);info.append(entry);
+  }else info.textContent='動画は未選択です。';
+  for(const video of videoDraft.existing){
+    const id=videoDriveId(video);if(!id)continue;
+    const btn=document.createElement('button');btn.type='button';btn.className='video-saved-item';btn.textContent=`▶ ${video.name||'保存済み動画'}（${videoSizeText(video.size||0)}）`;
+    btn.addEventListener('click',()=>openVideoViewer(video));stored.append(btn);
+  }
+  if(videoDraft.existing.length>=MAX_RECORD_VIDEOS){$('fieldVideo').disabled=true;$('fieldVideo').closest('.video-add-label')?.classList.add('hidden')}
+  else{$('fieldVideo').disabled=false;$('fieldVideo').closest('.video-add-label')?.classList.remove('hidden')}
+}
+$('fieldVideo').addEventListener('change',event=>{
+  const file=event.target.files?.[0];if(!file)return;
+  if(!videoMime(file)){alertMsg('MP4・MOV・WebMなどの動画ファイルを選択してください。',true);event.target.value='';return}
+  if(file.size>MAX_VIDEO_BYTES){alertMsg('動画は250MB以内にしてください。',true);event.target.value='';return}
+  if(videoDraft.existing.length>=MAX_RECORD_VIDEOS){alertMsg('動画は1件につき最大3本です。',true);event.target.value='';return}
+  videoDraft.file=file;videoDraft.uploaded=null;paintVideoDraft();
+});
+function authorizeDriveVideo(){
+  if(driveVideoToken&&Date.now()<driveVideoTokenUntil)return Promise.resolve(driveVideoToken);
+  if(!auth.currentUser)return Promise.reject(new Error('Googleログインをやり直してください。'));
+  const driveProvider=new GoogleAuthProvider();driveProvider.addScope(DRIVE_FILE_SCOPE);
+  driveProvider.setCustomParameters({prompt:'consent select_account'});
+  // 必ずユーザーが「保存」を押したイベントから直ちに呼ぶ（ポップアップブロック対策）。
+  return reauthenticateWithPopup(auth.currentUser,driveProvider).then(result=>{
+    const token=GoogleAuthProvider.credentialFromResult(result)?.accessToken;
+    if(!token)throw new Error('Google Driveのアクセス許可を取得できませんでした。');
+    if(result.user.email?.toLowerCase()!==OWNER_EMAIL.toLowerCase())throw new Error('よりみち日和にログイン中のGoogleアカウントを選択してください。');
+    driveVideoToken=token;driveVideoTokenUntil=Date.now()+45*60*1000;
+    return token;
+  });
+}
+async function uploadVideoToDrive(file,token,title,onProgress){
+  const mime=videoMime(file);if(!mime)throw new Error('サポートされていない動画形式です。');
+  const label=`よりみち日和_${String(title||'思い出').replace(/[\\/:*?"<>|]/g,'_').slice(0,35)}_${file.name}`;
+  const init=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,mimeType,size,webViewLink',{
+    method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':mime,'X-Upload-Content-Length':String(file.size)},
+    body:JSON.stringify({name:label,mimeType:mime,description:'よりみち日和に添付した動画（非公開）'})
+  });
+  if(!init.ok)throw videoApiError(init.status,await init.text());
+  const session=init.headers.get('Location');if(!session||!session.startsWith('https://'))throw new Error('Google Driveのアップロード準備に失敗しました。');
+  const chunkSize=8*1024*1024;
+  let start=0;
+  while(start<file.size){
+    const end=Math.min(start+chunkSize,file.size),part=file.slice(start,end);
+    const response=await fetch(session,{method:'PUT',headers:{'Content-Type':mime,'Content-Range':`bytes ${start}-${end-1}/${file.size}`},body:part});
+    if(response.status===308){start=end;onProgress?.(Math.round(start/file.size*100));continue}
+    if(!response.ok)throw videoApiError(response.status,await response.text());
+    const metadata=await response.json();
+    if(!videoDriveId(metadata))throw new Error('Google Driveから動画IDを受け取れませんでした。');
+    onProgress?.(100);
+    return {type:'google-drive',id:metadata.id,name:file.name,mimeType:mime,size:file.size,createdAt:now()};
+  }
+  throw new Error('動画をアップロードできませんでした。');
+}
+function openVideoViewer(video){
+  const id=videoDriveId(video);if(!id){alertMsg('動画のリンクが正しくありません。',true);return}
+  $('videoViewerTitle').textContent=video.name||'動画を再生';
+  $('videoViewerFrame').src=videoDrivePreview(id);
+  $('videoViewerOpenDrive').href=videoDriveUrl(id);
+  showDialog($('videoViewerDialog'));
+}
+$('videoViewerClose').addEventListener('click',()=>$('videoViewerDialog').close());
+$('videoViewerDialog').addEventListener('close',()=>$('videoViewerFrame').removeAttribute('src'));
+function videoButtonsMarkup(record){
+  const videos=Array.isArray(record.videos)?record.videos.filter(videoDriveId):[];
+  return videos.length?`<section class="record-videos"><h3>🎬 動画（${videos.length}本）</h3><div class="record-video-strip">${videos.map(v=>`<button type="button" class="record-video-button" data-video-id="${esc(videoDriveId(v))}" data-video-name="${esc(v.name||'動画')}" aria-label="${esc(v.name||'動画')}を再生"><span aria-hidden="true">▶</span><strong>${esc(v.name||'動画')}</strong><small>タップして再生 ↗</small></button>`).join('')}</div></section>`:'';
+}
+function findVideoById(id){
+  for(const item of [...state.logs,...state.wishes])for(const video of item.videos||[])if(videoDriveId(video)===id)return video;
+  return null;
+}
+
+function edit(kind,id=''){const item=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);if(id&&!item){alertMsg('編集対象が見つかりません。再読み込みしてください。',true);return}$('editForm').reset();resetPhotoDraft();videoDraft.file=null;videoDraft.uploaded=null;videoDraft.existing=Array.isArray(item?.videos)?item.videos.filter(videoDriveId):[];$('fieldVideo').value='';$('fieldVideoDriveUrl').value='';$('videoUploadProgress').textContent='';paintVideoDraft();clearLocationCandidates();$('editKind').value=kind;$('editId').value=id;$('dialogTitle').textContent=id?'記録を編集':kind==='log'?'思い出を記録':'行きたい場所を登録';$('fieldTitle').value=item?.title||'';$('fieldDate').value=item?.date||item?.planDate||today();$('fieldPlace').value=item?.place||'';$('fieldNote').value=item?.note||item?.reason||'';$('fieldLat').value=item?.lat??'';$('fieldLng').value=item?.lng??'';$('fieldGroup').value=item?.groupName||'';$('fieldTrip').value=item?.tripStyle||'未定';$('fieldStatus').value=item?.status||'wish';$('statusArea').classList.toggle('hidden',kind==='log');$('fieldGroup').closest('label').classList.toggle('hidden',kind==='wish');refreshCategoryUi();$('fieldMajor').value=item?.major||Object.keys(state.categories)[0]||'外食・グルメ';updateMinor();$('fieldMinor').value=item?.minor||'';$('editError').textContent='';paintPhotoDraft();if(item){photoDraft.ready=false;paintPhotoDraft();void loadExistingPhotoCount(item,photoDraft.token)}$('saveButton').textContent=item?'変更を保存':'保存する';$('editDelete').classList.toggle('hidden',!item);$('editDelete').dataset.trashKind=kind;$('editDelete').dataset.trashId=item?.id||'';showDialog($('editDialog'))}
 async function photoData(file,maxSide=1200,quality=.7){const img=await createImageBitmap(file);try{const scale=Math.min(1,maxSide/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',quality)}finally{img.close()}}
 // v2.0.16: 日本の住所に多い郵便番号・空白・ビル名などで検索が失敗しても
 // 地図を直接選んで登録できる。検索サービスの候補は必ず本人が選ぶ。
@@ -815,13 +931,34 @@ async function saveEdit(e){e.preventDefault();const kind=$('editKind').value,id=
 const hadPin=validCoord(old.lat,old.lng);
 const willHavePin=validCoord(base.lat,base.lng);
 const locationChanged=willHavePin&&(!hadPin||Number(old.lat)!==Number(base.lat)||Number(old.lng)!==Number(base.lng));
+const manualVideoLink=$('fieldVideoDriveUrl').value.trim();
+const manualVideoId=driveIdFromLink(manualVideoLink);
+if(manualVideoLink&&!manualVideoId){$('editError').textContent='Google Driveの動画リンクを確認してください。';return}
+if(manualVideoLink&&videoDraft.file){$('editError').textContent='動画ファイルとDriveのリンクは、どちらか一方だけ選んでください。';return}
+if((videoDraft.file||manualVideoId) && videoDraft.existing.length>=MAX_RECORD_VIDEOS){$('editError').textContent='動画は最大3本です。';return}
+if(videoDraft.file && videoDraft.file.size>MAX_VIDEO_BYTES){$('editError').textContent='動画は250MB以内にしてください。';return}
+// Googleの認証ポップアップは「保存する」クリック直後に開く。
+const driveAuthorization=videoDraft.file&&!videoDraft.uploaded?authorizeDriveVideo():null;
 const button=$('saveButton');button.disabled=true;button.textContent='保存中…';$('editError').textContent='';try{if(!photoDraft.ready)throw Error('写真枚数の確認中です。少し待ってから保存してください。');
+if(manualVideoId){
+  base.videos=[...(Array.isArray(old.videos)?old.videos:[]),{type:'google-drive',id:manualVideoId,name:'Google Driveの動画',mimeType:'video/mp4',size:0,createdAt:now()}];
+}
+if(videoDraft.file){
+  if(!videoDraft.uploaded){
+    $('videoUploadProgress').textContent='Google Driveへの保存を準備しています…';
+    const token=await driveAuthorization;
+    videoDraft.uploaded=await uploadVideoToDrive(videoDraft.file,token,title,percent=>{$('videoUploadProgress').textContent=`動画をGoogle Driveへ保存中… ${percent}%`});
+  }
+  base.videos=[...(Array.isArray(old.videos)?old.videos:[]),videoDraft.uploaded];
+  $('videoUploadProgress').textContent='動画の転送が完了しました。記録へ紐づけています…';
+}
+
 const f=[...photoDraft.files];
 if(photoDraft.refs.length+f.length>MAX_RECORD_PHOTOS)throw Error('1件の写真は最大5枚です。');for(const file of f){let dataUrl=await photoData(file,1300,.72);if(dataUrl.length>680000)dataUrl=await photoData(file,1000,.55);if(dataUrl.length>780000)throw new Error('画像を小さくできませんでした');const photoId=uniqueId();await setDoc(doc(db,'photos',photoId),{id:photoId,ownerId:id,kind,dataUrl,createdAt:now()});base.photos.push({type:'firestore',id:photoId,ref:photoId});cardThumbnailCache.delete(id)}await setDoc(doc(db,kind==='log'?'logs':'wishes',id),base);
 // Firestoreの書き込み成功後だけ画面の座標を更新。既存データは上書きしない。
 const inMemory=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);
 if(inMemory)Object.assign(inMemory,base);
-$('editDialog').close();resetPhotoDraft();
+$('editDialog').close();resetPhotoDraft();videoDraft.file=null;videoDraft.uploaded=null;videoDraft.existing=[];$('videoUploadProgress').textContent='';
 render(); // ピンと「未登録一覧」の件数を即時更新する
 if(willHavePin&&locationChanged){
   const count=[...state.logs,...state.wishes].filter(x=>!validCoord(x.lat,x.lng)).length;
@@ -831,7 +968,7 @@ if(willHavePin&&locationChanged){
   if(state.tab==='map'&&state.map)state.map.setView([Number(base.lat),Number(base.lng)],13);
   alertMsg('✓ 位置を保存しました。マップでピンと未登録件数を確認してください。');
 }else if(willHavePin) alertMsg('✓ 記録を保存しました。登録済みの地図ピンは維持されています。');
-else alertMsg('✓ 記録を保存しました。地図ピンはまだ未登録です。');}catch(ex){$('editError').textContent='保存できません: '+friendlyErr(ex);alertMsg('保存エラー',true)}finally{button.disabled=false;button.textContent='保存する'}}
+else alertMsg('✓ 記録を保存しました。地図ピンはまだ未登録です。');}catch(ex){$('editError').textContent='保存できません: '+friendlyErr(ex);$('videoUploadProgress').textContent=videoDraft.uploaded?'動画はDriveへ保存済みです。もう一度「保存する」を押すと、再アップロードせず記録への紐づけを試みます。':'Google Drive APIの有効化・Drive利用許可・空き容量を確認してください。';alertMsg('保存エラー',true)}finally{button.disabled=false;button.textContent='保存する'}}
 $('editForm').addEventListener('submit',saveEdit);
 async function stampWish(id){
   const x=state.wishes.find(w=>w.id===id);
@@ -901,7 +1038,7 @@ async function showVisit(id){
   const seq=++state.visitSeq;
   $('visitTitle').textContent=x.title;
   const body=$('visitBody');
-  body.innerHTML=`<p><strong>${esc(dateText(x.date))}</strong>　${esc(x.major||'')}/${esc(x.minor||'')}</p><p class="entry-note">${esc(x.note||'（感想なし）')}</p>${x.place?`<p><a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer">📍 Googleマップで開く ↗</a></p>`:''}<h3>この日の写真</h3><p class="photo-swipe-help">写真は左右にスワイプして見られます。タップで拡大します。</p><div id="visitPhotos" class="photo-strip"><p class="muted">写真を確認しています…</p></div>`;
+  body.innerHTML=`<p><strong>${esc(dateText(x.date))}</strong>　${esc(x.major||'')}/${esc(x.minor||'')}</p><p class="entry-note">${esc(x.note||'（感想なし）')}</p>${x.place?`<p><a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer">📍 Googleマップで開く ↗</a></p>`:''}${videoButtonsMarkup(x)}<h3>この日の写真</h3><p class="photo-swipe-help">写真は左右にスワイプして見られます。タップで拡大します。</p><div id="visitPhotos" class="photo-strip"><p class="muted">写真を確認しています…</p></div>`;
   $('visitEdit').dataset.editLog=x.id;
   $('visitDelete').dataset.trashLog=x.id;
   showDialog($('visitDialog'));
@@ -1108,5 +1245,7 @@ function drawHeader(){const ctx=$('headerCanvas').getContext('2d'),c=$('headerCa
 $('headerZoom').addEventListener('input',e=>{state.headerZoom=Number(e.target.value);drawHeader()});let drag=null;$('headerCanvas').addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};e.target.setPointerCapture(e.pointerId)});$('headerCanvas').addEventListener('pointermove',e=>{if(!drag)return;const factor=$('headerCanvas').width/$('headerCanvas').getBoundingClientRect().width;state.headerX+=(e.clientX-drag.x)*factor;state.headerY+=(e.clientY-drag.y)*factor;drag={x:e.clientX,y:e.clientY};drawHeader()});$('headerCanvas').addEventListener('pointerup',()=>drag=null);$('headerCanvas').addEventListener('pointercancel',()=>drag=null);
 $('saveHeader').addEventListener('click',async()=>{if(!state.headerImg){$('headerError').textContent='写真を選んでください';return}const btn=$('saveHeader');btn.disabled=true;try{const dataUrl=$('headerCanvas').toDataURL('image/jpeg',.7);if(dataUrl.length>850000)throw Error('画像サイズが大きすぎます');await setDoc(doc(db,'media','header'),{dataUrl,updatedAt:now()});$('headerDialog').close();alertMsg('ヘッダー画像を保存しました')}catch(e){$('headerError').textContent=friendlyErr(e)}finally{btn.disabled=false}});
 $('resetHeader').addEventListener('click',async()=>{if(!confirm('ヘッダーを標準に戻しますか？'))return;try{await setDoc(doc(db,'media','header'),{dataUrl:'',updatedAt:now()});alertMsg('標準ヘッダーに戻しました')}catch(e){alertMsg(friendlyErr(e),true)}});
-document.addEventListener('click',e=>{const b=e.target.closest('button,[data-action]');if(!b)return;if(b.dataset.close){$(b.dataset.close)?.close();return}if(b.dataset.action==='new-log'){edit('log');if(state.pendingMapPoint){$('fieldLat').value=state.pendingMapPoint.lat;$('fieldLng').value=state.pendingMapPoint.lng}}if(b.dataset.action==='new-wish'){edit('wish');if(state.pendingMapPoint){$('fieldLat').value=state.pendingMapPoint.lat;$('fieldLng').value=state.pendingMapPoint.lng}}if(b.dataset.photoPreview)openPhotoViewer(b.dataset.photoPreview);if(b.dataset.view)showVisit(b.dataset.view);if(b.dataset.editLog){if($('visitDialog').open){$('visitDialog').close();state.visitSeq++}edit('log',b.dataset.editLog)}if(b.dataset.trashLog)void moveToTrash('log',b.dataset.trashLog);if(b.dataset.trashKind&&b.dataset.trashId)void moveToTrash(b.dataset.trashKind,b.dataset.trashId);if(b.dataset.restoreKind&&b.dataset.restoreId)void restoreFromTrash(b.dataset.restoreKind,b.dataset.restoreId);if(b.dataset.editWish)edit('wish',b.dataset.editWish);if(b.dataset.stamp)stampWish(b.dataset.stamp);if(b.dataset.deleteWish)deleteWish(b.dataset.deleteWish);if(b.dataset.removeCat!==undefined)removeCat(b.dataset.removeCat,b.dataset.removeMinor)});
+document.addEventListener('click',e=>{const b=e.target.closest('button,[data-action]');if(!b)return;if(b.dataset.close){$(b.dataset.close)?.close();return}if(b.dataset.action==='new-log'){edit('log');if(state.pendingMapPoint){$('fieldLat').value=state.pendingMapPoint.lat;$('fieldLng').value=state.pendingMapPoint.lng}}if(b.dataset.action==='new-wish'){edit('wish');if(state.pendingMapPoint){$('fieldLat').value=state.pendingMapPoint.lat;$('fieldLng').value=state.pendingMapPoint.lng}}if(b.dataset.videoId){const video=findVideoById(b.dataset.videoId);if(video)openVideoViewer(video)}
+if(b.dataset.wishVideos){const wish=state.wishes.find(x=>x.id===b.dataset.wishVideos);const video=wish?.videos?.find(videoDriveId);if(video)openVideoViewer(video)}
+if(b.dataset.photoPreview)openPhotoViewer(b.dataset.photoPreview);if(b.dataset.view)showVisit(b.dataset.view);if(b.dataset.editLog){if($('visitDialog').open){$('visitDialog').close();state.visitSeq++}edit('log',b.dataset.editLog)}if(b.dataset.trashLog)void moveToTrash('log',b.dataset.trashLog);if(b.dataset.trashKind&&b.dataset.trashId)void moveToTrash(b.dataset.trashKind,b.dataset.trashId);if(b.dataset.restoreKind&&b.dataset.restoreId)void restoreFromTrash(b.dataset.restoreKind,b.dataset.restoreId);if(b.dataset.editWish)edit('wish',b.dataset.editWish);if(b.dataset.stamp)stampWish(b.dataset.stamp);if(b.dataset.deleteWish)deleteWish(b.dataset.deleteWish);if(b.dataset.removeCat!==undefined)removeCat(b.dataset.removeCat,b.dataset.removeMinor)});
 refreshCategoryUi();drawHeader();
