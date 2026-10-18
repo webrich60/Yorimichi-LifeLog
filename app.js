@@ -15,6 +15,30 @@ const uniqueId=()=>globalThis.crypto?.randomUUID?.()||('id_'+Date.now()+'_'+Math
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const validCoord=(lat,lng)=>lat!==null&&lng!==null&&lat!==''&&lng!==''&&Number.isFinite(Number(lat))&&Number.isFinite(Number(lng))&&Math.abs(Number(lat))<=90&&Math.abs(Number(lng))<=180;
 const mapsUrl=place=>`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place||'日本')}`;
+// v2.0.20: 思い出・行きたい場所に付ける外部リンク。無効なスキームは表示・保存しない。
+const MAX_RECORD_LINKS=5;
+function normalizeExternalUrl(raw){
+  let value=String(raw??'').trim();
+  if(!value)return '';
+  if(!/^[a-z][a-z0-9+.-]*:\/\//i.test(value) && !/^[a-z][a-z0-9+.-]*:/i.test(value))value='https://'+value;
+  try{
+    const u=new URL(value);
+    if(!['http:','https:'].includes(u.protocol)||!u.hostname||u.username||u.password)return '';
+    return u.href;
+  }catch(_){return ''}
+}
+function relatedLinks(record){
+  const candidates=Array.isArray(record?.links)?record.links:[];
+  const legacy=record?.externalUrl?[{url:record.externalUrl,label:record.externalLabel||'関連リンク'}]:[];
+  return [...candidates,...legacy].map(v=>({url:normalizeExternalUrl(typeof v==='string'?v:v?.url),label:String(typeof v==='string'?'':v?.label||'').trim().slice(0,60)}))
+    .filter(v=>v.url).slice(0,MAX_RECORD_LINKS);
+}
+function relatedLinksMarkup(record,compact=false){
+  const links=relatedLinks(record);
+  if(!links.length)return '';
+  return `<div class="entry-link-list ${compact?'entry-link-list-compact':''}" aria-label="登録済みの関連リンク">${links.map(link=>`<a class="entry-link-chip" href="${esc(link.url)}" target="_blank" rel="noopener noreferrer">🔗 ${esc(link.label||new URL(link.url).hostname)} ↗</a>`).join('')}</div>`;
+}
+
 const defaultCats={'観光・旅行':['観光スポット','自然・絶景','寺社・歴史','道の駅','旅館・ホテル','温泉'],'外食・グルメ':['カフェ・喫茶','和食','洋食','海鮮','ラーメン・麺類','スイーツ','中華'],'遊び・体験':['レジャー','イベント','文化体験','ドライブ'],'日常・暮らし':['買い物','家族','散歩','その他'],'宿泊':['ホテル','旅館','温泉宿']};
 const state={user:null,logs:[],wishes:[],trashedLogs:[],trashedWishes:[],categories:structuredClone(defaultCats),media:null,tab:'home',unsubs:[],map:null,leafletPromise:null,pendingMapPoint:null,headerImg:null,headerX:0,headerY:0,headerZoom:1,headerBaseScale:1,photoCache:new Map(),headerPhotoIndex:null,visitSeq:0,toastTimer:null,loaded:{logs:false,wishes:false}};
 const alertMsg=(message,bad=false)=>{let el=$('toast');el.textContent=message;el.style.background=bad?'#963d40':'#193d58';el.classList.remove('hidden');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>el.classList.add('hidden'),4200)};
@@ -83,6 +107,7 @@ function cardLog(x){
       <div class="entry-meta">${esc(dateText(x.date))}${x.date?' ・ ':''}${esc(x.major||'思い出')}${x.minor?' / '+esc(x.minor):''}</div>
       <div class="entry-title">${esc(x.title)}</div>
       ${x.place?`<a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer" class="entry-meta entry-address">📍 ${esc(x.place)} ↗</a>`:''}
+      ${relatedLinksMarkup(x,true)}
       <div class="entry-actions"><button class="primary slim record-open" data-view="${esc(x.id)}">記録を見る <span aria-hidden="true">›</span></button><button class="ghost slim" data-edit-log="${esc(x.id)}">編集する</button><button class="ghost slim danger-quiet" data-trash-log="${esc(x.id)}">削除</button></div>
     </div>
   </article>`;
@@ -94,6 +119,7 @@ function cardGroupedVisit(x){
       <div class="entry-meta">${esc(dateText(x.date))} / ${esc(x.minor||x.major||'思い出')}</div>
       <strong class="visit-title">${esc(x.title)}</strong>
       ${x.note?`<p class="entry-note visit-excerpt">${esc(x.note)}</p>`:''}
+      ${relatedLinksMarkup(x,true)}
       <div class="entry-actions"><button class="ghost slim" data-view="${esc(x.id)}">記録を見る ›</button><button class="ghost slim" data-edit-log="${esc(x.id)}">編集する</button><button class="ghost slim danger-quiet" data-trash-log="${esc(x.id)}">削除</button></div>
     </div>
   </div>`;
@@ -166,6 +192,7 @@ function cardWish(x){
       <div class="entry-title">${esc(x.title)}</div>
       <div class="wish-status-row"><span class="wish-status ${visited?'wish-status-visited':'wish-status-pending'}">${stateLabel}</span>${visited?when:'<span class="wish-not-visited">未訪問</span>'}</div>
       ${x.place?`<a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer" class="entry-meta">📍 ${esc(x.place)} ↗</a>`:''}
+      ${relatedLinksMarkup(x,true)}
       <div class="entry-actions">
         ${visited?'':`<button type="button" class="ghost slim wish-mark-visit" data-stamp="${esc(x.id)}" aria-label="${esc(x.title)}に実際に行ったことを記録する">行った場合に記録する</button>`}
         ${Array.isArray(x.videos)&&x.videos.some(videoDriveId)?`<button type="button" class="ghost slim" data-wish-videos="${esc(x.id)}">🎬 動画を見る (${x.videos.length})</button>`:''}
@@ -529,11 +556,12 @@ const videoDriveUrl=id=>`https://drive.google.com/file/d/${encodeURIComponent(id
 const videoDrivePreview=id=>`https://drive.google.com/file/d/${encodeURIComponent(id)}/preview`;
 const videoSizeText=size=>Number(size)>=1024*1024?`${(Number(size)/1024/1024).toFixed(1)} MB`:`${Math.max(1,Math.round(Number(size)/1024))} KB`;
 function videoApiError(status,body=''){
-  if(status===401)return new Error('Google Driveの認証期限が切れました。保存をもう一度押して許可してください。');
-  if(status===403)return new Error('Google Driveへのアクセスが許可されていません。Google Cloudの「Google Drive API」が有効か、ログインとDrive利用許可を確認してください。');
-  if(status===400)return new Error('動画のアップロードが拒否されました。ファイル形式・サイズとDriveの空き容量を確認してください。');
-  if(status===404)return new Error('Google Driveへの保存先が見つかりません。再度お試しください。');
-  return new Error(`Google Driveの保存でエラーが発生しました（HTTP ${status}）。 ${String(body).slice(0,80)}`);
+  let code='',reason='';
+  try{const d=JSON.parse(body).error;code=d?.status||'';reason=d?.message||''}catch(_){}
+  if(status===401){driveVideoToken=null;driveVideoTokenUntil=0;return new Error('Driveの認証が切れています。接続確認から再認証してください。')}
+  if(status===403)return new Error(`Driveへの書き込みが拒否されました。Drive APIが有効か、利用許可・空き容量をご確認ください。${reason?' 詳細: '+reason.slice(0,140):''}`);
+  if(status===400)return new Error(`Driveが動画を受け付けませんでした。${reason||'ファイル形式・サイズを確認してください。'}`);
+  return new Error(`Drive保存エラー（HTTP ${status}${code?' / '+code:''}）。${reason||String(body).slice(0,120)}`);
 }
 function driveIdFromLink(value){
   const str=String(value||'').trim();if(!str)return '';
@@ -591,29 +619,48 @@ function authorizeDriveVideo(){
     return token;
   });
 }
+
+// 動画を保存する前に、相棒がGoogle Driveの許可状態を画面から検査できる。
+$('videoDriveTest').addEventListener('click',async()=>{
+  const b=$('videoDriveTest'),out=$('videoDriveConnectionStatus');
+  b.disabled=true;out.textContent='Google Driveへの接続を確認しています…';
+  try{
+    const token=await authorizeDriveVideo();
+    const response=await fetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)',{headers:{Authorization:`Bearer ${token}`}});
+    if(!response.ok)throw videoApiError(response.status,await response.text());
+    const info=await response.json();
+    if(info?.user?.emailAddress?.toLowerCase()!==OWNER_EMAIL.toLowerCase())throw new Error('別のGoogleアカウントが選ばれています。いつものアカウントに切り替えてください。');
+    out.textContent='✓ Google Driveに接続できました。動画ファイルを選択して保存できます。';
+    alertMsg('✓ Google Driveへの接続に成功しました');
+  }catch(e){out.textContent='接続できません: '+friendlyErr(e)+'　Driveへ先に動画を保存し、下のリンク欄に貼る方法なら、アプリに動画を登録できます。';}
+  finally{b.disabled=false}
+});
 async function uploadVideoToDrive(file,token,title,onProgress){
   const mime=videoMime(file);if(!mime)throw new Error('サポートされていない動画形式です。');
   const label=`よりみち日和_${String(title||'思い出').replace(/[\\/:*?"<>|]/g,'_').slice(0,35)}_${file.name}`;
-  const init=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,mimeType,size,webViewLink',{
-    method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':mime,'X-Upload-Content-Length':String(file.size)},
-    body:JSON.stringify({name:label,mimeType:mime,description:'よりみち日和に添付した動画（非公開）'})
-  });
-  if(!init.ok)throw videoApiError(init.status,await init.text());
-  const session=init.headers.get('Location');if(!session||!session.startsWith('https://'))throw new Error('Google Driveのアップロード準備に失敗しました。');
-  const chunkSize=8*1024*1024;
-  let start=0;
-  while(start<file.size){
-    const end=Math.min(start+chunkSize,file.size),part=file.slice(start,end);
-    const response=await fetch(session,{method:'PUT',headers:{'Content-Type':mime,'Content-Range':`bytes ${start}-${end-1}/${file.size}`},body:part});
-    if(response.status===308){start=end;onProgress?.(Math.round(start/file.size*100));continue}
-    if(!response.ok)throw videoApiError(response.status,await response.text());
-    const metadata=await response.json();
-    if(!videoDriveId(metadata))throw new Error('Google Driveから動画IDを受け取れませんでした。');
-    onProgress?.(100);
-    return {type:'google-drive',id:metadata.id,name:file.name,mimeType:mime,size:file.size,createdAt:now()};
-  }
-  throw new Error('動画をアップロードできませんでした。');
+  // これまでは resumable の Location ヘッダーに依存していた。
+  // クロスオリジンのブラウザでは Location が読み取れない場合があるため、
+  // Google公式JS例に従い、一つのmultipart/relatedリクエストでメタデータと動画を送る。
+  const boundary='yorimichi_'+uniqueId().replace(/[^a-zA-Z0-9]/g,'');
+  const payload=new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`,
+    JSON.stringify({name:label,mimeType:mime,description:'よりみち日和に添付した動画（非公開）'}),
+    `\r\n--${boundary}\r\nContent-Type: ${mime}\r\n\r\n`,file,`\r\n--${boundary}--\r\n`
+  ]);
+  onProgress?.(0);
+  let response;
+  try{
+    response=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,size,webViewLink',{
+      method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':`multipart/related; boundary=${boundary}`},body:payload
+    });
+  }catch(e){throw new Error('動画の送信に接続できませんでした。通信・Google Drive APIの設定を確認するか、Driveリンクで登録してください。'+friendlyErr(e))}
+  if(!response.ok)throw videoApiError(response.status,await response.text());
+  const data=await response.json();
+  if(!videoDriveId(data))throw new Error('Google Driveへの送信後、動画IDを取得できませんでした。Drive内に重複保存されていないか確認してください。');
+  onProgress?.(100);
+  return {type:'google-drive',id:data.id,name:file.name,mimeType:mime,size:file.size,createdAt:now()};
 }
+
 function openVideoViewer(video){
   const id=videoDriveId(video);if(!id){alertMsg('動画のリンクが正しくありません。',true);return}
   $('videoViewerTitle').textContent=video.name||'動画を再生';
@@ -632,7 +679,45 @@ function findVideoById(id){
   return null;
 }
 
-function edit(kind,id=''){const item=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);if(id&&!item){alertMsg('編集対象が見つかりません。再読み込みしてください。',true);return}$('editForm').reset();resetPhotoDraft();videoDraft.file=null;videoDraft.uploaded=null;videoDraft.existing=Array.isArray(item?.videos)?item.videos.filter(videoDriveId):[];$('fieldVideo').value='';$('fieldVideoDriveUrl').value='';$('videoUploadProgress').textContent='';paintVideoDraft();clearLocationCandidates();$('editKind').value=kind;$('editId').value=id;$('dialogTitle').textContent=id?'記録を編集':kind==='log'?'思い出を記録':'行きたい場所を登録';$('fieldTitle').value=item?.title||'';$('fieldDate').value=item?.date||item?.planDate||today();$('fieldPlace').value=item?.place||'';$('fieldNote').value=item?.note||item?.reason||'';$('fieldLat').value=item?.lat??'';$('fieldLng').value=item?.lng??'';$('fieldGroup').value=item?.groupName||'';$('fieldTrip').value=item?.tripStyle||'未定';$('fieldStatus').value=item?.status||'wish';$('statusArea').classList.toggle('hidden',kind==='log');$('fieldGroup').closest('label').classList.toggle('hidden',kind==='wish');refreshCategoryUi();$('fieldMajor').value=item?.major||Object.keys(state.categories)[0]||'外食・グルメ';updateMinor();$('fieldMinor').value=item?.minor||'';$('editError').textContent='';paintPhotoDraft();if(item){photoDraft.ready=false;paintPhotoDraft();void loadExistingPhotoCount(item,photoDraft.token)}$('saveButton').textContent=item?'変更を保存':'保存する';$('editDelete').classList.toggle('hidden',!item);$('editDelete').dataset.trashKind=kind;$('editDelete').dataset.trashId=item?.id||'';showDialog($('editDialog'))}
+
+function addRelatedLinkRow(value={}){
+  const root=$('relatedLinkRows');
+  if(root.children.length>=MAX_RECORD_LINKS){alertMsg('関連リンクは最大5件までです。',true);return}
+  const row=document.createElement('div');row.className='related-link-row';
+  const name=document.createElement('input');name.type='text';name.maxLength=60;name.placeholder='リンク名（例：公式サイト）';name.className='related-link-name';name.setAttribute('aria-label','関連リンクの名前');name.value=String(value.label||'');
+  const url=document.createElement('input');url.type='url';url.inputMode='url';url.placeholder='https://example.com';url.className='related-link-url';url.setAttribute('aria-label','関連リンクのURL');url.value=String(value.url||'');
+  // ブラウザ内蔵のURLバリデーションより正規化処理で判定し、日本語入力中は妨げない。
+  url.type='text';
+  const del=document.createElement('button');del.type='button';del.className='ghost slim related-link-remove';del.textContent='削除';del.setAttribute('aria-label','このリンク欄を削除');
+  del.addEventListener('click',()=>{row.remove();updateRelatedLinkAddState()});
+  row.append(name,url,del);root.append(row);updateRelatedLinkAddState();
+}
+function updateRelatedLinkAddState(){
+  const count=$('relatedLinkRows').children.length;
+  $('relatedLinkAdd').disabled=count>=MAX_RECORD_LINKS;
+  $('relatedLinkCounter').textContent=`${count} / ${MAX_RECORD_LINKS}件`;
+}
+function loadRelatedLinkRows(item){
+  $('relatedLinkRows').replaceChildren();
+  const links=relatedLinks(item);
+  (links.length?links:[{}]).forEach(addRelatedLinkRow);
+}
+function collectRelatedLinks(){
+  const list=[];
+  for(const row of $('relatedLinkRows').children){
+    const label=row.querySelector('.related-link-name').value.trim();
+    const raw=row.querySelector('.related-link-url').value.trim();
+    if(!raw){if(label)throw new Error('リンク名がある行にはURLも入力してください。');continue}
+    const url=normalizeExternalUrl(raw);
+    if(!url)throw new Error('関連リンクのURLを確認してください。https:// から始まるサイトのURLを入力してください。');
+    if(list.some(v=>v.url===url))continue;
+    list.push({url,label:label||new URL(url).hostname});
+  }
+  if(list.length>MAX_RECORD_LINKS)throw new Error('関連リンクは最大5件です。');
+  return list;
+}
+$('relatedLinkAdd').addEventListener('click',()=>addRelatedLinkRow());
+function edit(kind,id=''){const item=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);if(id&&!item){alertMsg('編集対象が見つかりません。再読み込みしてください。',true);return}$('editForm').reset();loadRelatedLinkRows(item);resetPhotoDraft();videoDraft.file=null;videoDraft.uploaded=null;videoDraft.existing=Array.isArray(item?.videos)?item.videos.filter(videoDriveId):[];$('fieldVideo').value='';$('fieldVideoDriveUrl').value='';$('videoUploadProgress').textContent='';paintVideoDraft();clearLocationCandidates();$('editKind').value=kind;$('editId').value=id;$('dialogTitle').textContent=id?'記録を編集':kind==='log'?'思い出を記録':'行きたい場所を登録';$('fieldTitle').value=item?.title||'';$('fieldDate').value=item?.date||item?.planDate||today();$('fieldPlace').value=item?.place||'';$('fieldNote').value=item?.note||item?.reason||'';$('fieldLat').value=item?.lat??'';$('fieldLng').value=item?.lng??'';$('fieldGroup').value=item?.groupName||'';$('fieldTrip').value=item?.tripStyle||'未定';$('fieldStatus').value=item?.status||'wish';$('statusArea').classList.toggle('hidden',kind==='log');$('fieldGroup').closest('label').classList.toggle('hidden',kind==='wish');refreshCategoryUi();$('fieldMajor').value=item?.major||Object.keys(state.categories)[0]||'外食・グルメ';updateMinor();$('fieldMinor').value=item?.minor||'';$('editError').textContent='';paintPhotoDraft();if(item){photoDraft.ready=false;paintPhotoDraft();void loadExistingPhotoCount(item,photoDraft.token)}$('saveButton').textContent=item?'変更を保存':'保存する';$('editDelete').classList.toggle('hidden',!item);$('editDelete').dataset.trashKind=kind;$('editDelete').dataset.trashId=item?.id||'';showDialog($('editDialog'))}
 async function photoData(file,maxSide=1200,quality=.7){const img=await createImageBitmap(file);try{const scale=Math.min(1,maxSide/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',quality)}finally{img.close()}}
 // v2.0.16: 日本の住所に多い郵便番号・空白・ビル名などで検索が失敗しても
 // 地図を直接選んで登録できる。検索サービスの候補は必ず本人が選ぶ。
@@ -928,6 +1013,7 @@ $('fieldPlace').addEventListener('input',()=>{
 });
 
 async function saveEdit(e){e.preventDefault();const kind=$('editKind').value,id=$('editId').value||uniqueId();const title=$('fieldTitle').value.trim();if(!title){$('editError').textContent='名前を入力してください';return}const old=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id)||{};const lat=$('fieldLat').value,lng=$('fieldLng').value;if((lat||lng)&&!validCoord(lat,lng)){$('editError').textContent='緯度・経度が正しくありません';return}const base={...old,id,title,major:$('fieldMajor').value,minor:$('fieldMinor').value,tripStyle:$('fieldTrip').value,place:$('fieldPlace').value.trim(),note:$('fieldNote').value.trim(),lat:lat===''?null:Number(lat),lng:lng===''?null:Number(lng),groupName:$('fieldGroup').value.trim(),updatedAt:now(),createdAt:old.createdAt||now(),photos:[...(old.photos||[])]};if(kind==='log')base.date=$('fieldDate').value||today();else {base.planDate=$('fieldDate').value;base.status=$('fieldStatus').value;base.reason=base.note;if(base.status==='visited'&&!base.visitDate)base.visitDate=today()}
+try{base.links=collectRelatedLinks()}catch(ex){$('editError').textContent=ex.message;return}
 const hadPin=validCoord(old.lat,old.lng);
 const willHavePin=validCoord(base.lat,base.lng);
 const locationChanged=willHavePin&&(!hadPin||Number(old.lat)!==Number(base.lat)||Number(old.lng)!==Number(base.lng));
@@ -968,7 +1054,7 @@ if(willHavePin&&locationChanged){
   if(state.tab==='map'&&state.map)state.map.setView([Number(base.lat),Number(base.lng)],13);
   alertMsg('✓ 位置を保存しました。マップでピンと未登録件数を確認してください。');
 }else if(willHavePin) alertMsg('✓ 記録を保存しました。登録済みの地図ピンは維持されています。');
-else alertMsg('✓ 記録を保存しました。地図ピンはまだ未登録です。');}catch(ex){$('editError').textContent='保存できません: '+friendlyErr(ex);$('videoUploadProgress').textContent=videoDraft.uploaded?'動画はDriveへ保存済みです。もう一度「保存する」を押すと、再アップロードせず記録への紐づけを試みます。':'Google Drive APIの有効化・Drive利用許可・空き容量を確認してください。';alertMsg('保存エラー',true)}finally{button.disabled=false;button.textContent='保存する'}}
+else alertMsg('✓ 記録を保存しました。地図ピンはまだ未登録です。');}catch(ex){$('editError').textContent='保存できません: '+friendlyErr(ex);$('videoUploadProgress').textContent=videoDraft.uploaded?'動画はDriveへ保存済みです。もう一度「保存する」を押すと、再アップロードせず記録への紐づけを試みます。':'Google Driveに保存できませんでした。下の「Driveに保存済みの動画リンク」を使う方法もあります。接続確認の結果を確認してください。';alertMsg('保存エラー',true)}finally{button.disabled=false;button.textContent='保存する'}}
 $('editForm').addEventListener('submit',saveEdit);
 async function stampWish(id){
   const x=state.wishes.find(w=>w.id===id);
@@ -1038,7 +1124,7 @@ async function showVisit(id){
   const seq=++state.visitSeq;
   $('visitTitle').textContent=x.title;
   const body=$('visitBody');
-  body.innerHTML=`<p><strong>${esc(dateText(x.date))}</strong>　${esc(x.major||'')}/${esc(x.minor||'')}</p><p class="entry-note">${esc(x.note||'（感想なし）')}</p>${x.place?`<p><a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer">📍 Googleマップで開く ↗</a></p>`:''}${videoButtonsMarkup(x)}<h3>この日の写真</h3><p class="photo-swipe-help">写真は左右にスワイプして見られます。タップで拡大します。</p><div id="visitPhotos" class="photo-strip"><p class="muted">写真を確認しています…</p></div>`;
+  body.innerHTML=`<p><strong>${esc(dateText(x.date))}</strong>　${esc(x.major||'')}/${esc(x.minor||'')}</p><p class="entry-note">${esc(x.note||'（感想なし）')}</p>${x.place?`<p><a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer">📍 Googleマップで開く ↗</a></p>`:''}${relatedLinksMarkup(x)}${videoButtonsMarkup(x)}<h3>この日の写真</h3><p class="photo-swipe-help">写真は左右にスワイプして見られます。タップで拡大します。</p><div id="visitPhotos" class="photo-strip"><p class="muted">写真を確認しています…</p></div>`;
   $('visitEdit').dataset.editLog=x.id;
   $('visitDelete').dataset.trashLog=x.id;
   showDialog($('visitDialog'));

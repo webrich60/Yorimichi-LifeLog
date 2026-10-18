@@ -487,3 +487,24 @@
 #videoViewerFrame{width:100%;height:100%;border:0;display:block}
 .video-drive-link{margin-top:8px}
 @media(max-width:650px){.video-upload-panel{padding:12px}.video-frame-wrap{max-height:45dvh}.video-saved-item{max-width:230px}}
+
+/* v2.0.20: 思い出／行きたい場所の関連リンクと動画接続診断。既存レイアウト・写真保存を変更しない */
+.related-links-panel{border:1.5px solid #a9cbd7;border-radius:17px;background:#f6fafc;padding:15px;margin-top:8px;min-width:0}
+.related-links-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#183e57}
+.related-links-panel p{font-size:.86rem;margin:5px 0 12px;color:#44687d}
+.related-link-rows{display:flex;flex-direction:column;gap:9px;margin-bottom:11px}
+.related-link-row{display:grid;grid-template-columns:minmax(105px,.6fr) minmax(180px,1.4fr) auto;gap:8px;align-items:center}
+.related-link-row input{width:100%;min-width:0;border:1.5px solid #afc8d6;border-radius:10px;padding:10px;color:#173d55;background:#fff}
+.related-link-remove{color:#903d42;white-space:nowrap}
+.entry-link-list{display:flex;flex-wrap:wrap;gap:7px;margin:11px 0}
+.entry-link-list-compact{margin:8px 0}
+.entry-link-chip{display:inline-flex;align-items:center;max-width:100%;overflow-wrap:anywhere;text-decoration:none;background:#eaf4fb;border:1.5px solid #a4c7db;border-radius:11px;color:#17496d;font-size:.85rem;font-weight:800;line-height:1.4;padding:9px 11px;min-height:40px}
+.entry-link-chip:focus-visible{outline:3px solid #f0b84f}
+.video-connect-check{border:1px solid #bfd4df;background:#fff;border-radius:12px;padding:10px;margin:10px 0}
+.video-connect-check p{margin:7px 0 0}
+.video-link-fallback{border-top:1.5px solid #c7dce5;padding-top:12px;margin-top:13px}
+.video-link-fallback>strong{font-size:.94rem;color:#173e56}
+.video-link-fallback>a{margin:2px 0 11px}
+.video-link-fallback label{display:block;margin-top:8px}
+.video-link-fallback input{width:100%;max-width:100%;padding:10px;border:1.5px solid #acc8d6;border-radius:9px}
+@media(max-width:650px){.related-links-panel{padding:12px}.related-link-row{grid-template-columns:minmax(0,1fr) auto;gap:6px}.related-link-name{grid-column:1/-1}.related-link-url{grid-column:1}.related-link-remove{grid-column:2;grid-row:2}.entry-link-chip{font-size:.83rem}}
