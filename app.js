@@ -227,10 +227,7 @@ function homeMemoryCard(x,index){
     <div class="memory-tile-info"><div class="memory-tile-meta">${esc(dateText(date))}${category?' · '+esc(category):''}</div>
       <h3>${esc(x.title||'思い出')}</h3>
       <button class="memory-tile-open" type="button" data-view="${esc(x.id)}" aria-label="${esc(x.title||'思い出')}の記録を見る">記録を見る <span aria-hidden="true">↗</span></button>
-      <div class="memory-manage-actions" aria-label="この思い出の操作">
-        <button type="button" data-edit-log="${esc(x.id)}" aria-label="${esc(x.title||'思い出')}を編集">✎ 編集</button>
-        <button type="button" class="danger-quiet" data-trash-log="${esc(x.id)}" aria-label="${esc(x.title||'思い出')}をゴミ箱に移動">🗑 削除</button>
-      </div>
+
     </div>
   </article>`;
 }
