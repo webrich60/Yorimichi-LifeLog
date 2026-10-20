@@ -236,7 +236,7 @@ function homeMemoryCard(x,index){
 }
 function renderHome(){
   $('homeAlbumCount').textContent=state.logs.length+'件の思い出';
-  const recent=homePlaces(5),area=$('homeRecent');
+  const recent=homePlaces(10),area=$('homeRecent');
   area.innerHTML=recent.map(homeMemoryCard).join('')||empty('まだ思い出がありません。最初のよりみちを記録してみましょう。');
   scheduleCardThumbnails(area);
   $('homeWishes').innerHTML=dateSort(state.wishes.filter(x=>x.status!=='visited'),'createdAt').slice(0,2).map(cardWish).join('')||empty('行きたい場所をひとつ登録してみよう。');
