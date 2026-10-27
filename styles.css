@@ -508,3 +508,33 @@
 .video-link-fallback label{display:block;margin-top:8px}
 .video-link-fallback input{width:100%;max-width:100%;padding:10px;border:1.5px solid #acc8d6;border-radius:9px}
 @media(max-width:650px){.related-links-panel{padding:12px}.related-link-row{grid-template-columns:minmax(0,1fr) auto;gap:6px}.related-link-name{grid-column:1/-1}.related-link-url{grid-column:1}.related-link-remove{grid-column:2;grid-row:2}.entry-link-chip{font-size:.83rem}}
+
+/* v2.2.0 — 再訪登録・飲食店の繰り返し訪問 */
+.revisit-quick{padding:16px 18px;margin:0 0 14px;background:linear-gradient(115deg,#f5fbfa,#fff);border:2px solid #9ecfce}
+.revisit-quick h2{margin:0 0 4px;color:#164f62;font-size:1.04rem}
+.revisit-quick p{font-size:.84rem;color:#345f6b;margin:0 0 10px}
+.revisit-quick-controls{display:flex;gap:9px;align-items:end;flex-wrap:wrap}
+.revisit-quick-controls label{font-size:.83rem;font-weight:850;color:#294d61}
+.revisit-quick-controls select{flex:1 1 210px;min-width:0;border:2px solid #91b4c0;color:#17384c;font-weight:750}
+.revisit-quick-controls .primary{flex:0 0 auto;white-space:nowrap}
+.revisit-options{padding:13px 14px!important;border:2px solid #79b8bb;border-radius:14px;background:#e8f6f4;color:#193d51}
+.revisit-options>strong{display:block;font-size:1.06rem}
+.revisit-options p{margin:5px 0 8px;font-size:.88rem;color:#254b5b}
+.revisit-options>label{font-size:.88rem!important;margin-bottom:4px}
+.revisit-options select{background:#fff;border:2px solid #648f9f;font-weight:800;color:#143d57}
+.revisit-options #revisitPhotoStatus{font-weight:700;line-height:1.5;margin:6px 0 0}
+.revisit-btn{color:#0e5263!important;border:1.5px solid #67aaa8!important;background:#e8f7f3!important}
+.revisit-btn:hover{background:#cbedeb!important}
+.visit-count-label{display:inline-flex;align-items:center;background:#e4f1ed;color:#145361;border:1px solid #92cbc7;padding:2px 10px;border-radius:99px;font-size:.76rem;font-weight:850;margin:3px 0 4px}
+.group-revisit-tools{padding:4px 11px 7px;display:flex;justify-content:flex-end}
+.revisit-history{padding:12px;background:#f2f7f8;border:1px solid #c3d8df;border-radius:12px;margin:12px 0}
+.revisit-history h3{margin-bottom:9px}
+.revisit-history-list{display:flex;gap:7px;flex-wrap:wrap}
+.revisit-history-list button{font-size:.79rem;border:1px solid #a5cbd2;color:#24576b}
+@media(max-width:650px){
+ .revisit-quick{padding:14px;margin:0 0 13px}
+ .revisit-quick-controls{display:grid;grid-template-columns:minmax(0,1fr);gap:7px}
+ .revisit-quick-controls .primary{width:100%}
+ .revisit-options{padding:11px!important}
+ .revisit-history-list{max-height:130px;overflow:auto}
+}

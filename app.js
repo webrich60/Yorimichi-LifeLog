@@ -40,7 +40,9 @@ function relatedLinksMarkup(record,compact=false){
   return `<div class="entry-link-list ${compact?'entry-link-list-compact':''}" aria-label="登録済みの関連リンク">${links.map(link=>`<a class="entry-link-chip" href="${esc(link.url)}" target="_blank" rel="noopener noreferrer">🔗 ${esc(link.label||new URL(link.url).hostname)} ↗</a>`).join('')}</div>`;
 }
 
-const defaultCats={'観光・旅行':['観光スポット','自然・絶景','寺社・歴史','道の駅','旅館・ホテル','温泉'],'外食・グルメ':['カフェ・喫茶','和食','洋食','海鮮','ラーメン・麺類','スイーツ','中華'],'遊び・体験':['レジャー','イベント','文化体験','ドライブ'],'日常・暮らし':['買い物','家族','散歩','その他'],'宿泊':['ホテル','旅館','温泉宿']};
+const defaultCats={'観光・旅行':['観光スポット','自然・絶景','寺社・歴史','道の駅','旅館・ホテル','温泉'],'外食・グルメ':['カフェ','カフェ・喫茶','中華','和食','洋食','海鮮','ラーメン・麺類','スイーツ'],'遊び・体験':['レジャー','イベント','文化体験','ドライブ'],'日常・暮らし':['買い物','家族','散歩','その他'],'宿泊':['ホテル','旅館','温泉宿']};
+const diningAdditions=['カフェ','カフェ・喫茶','中華'];
+function ensureDiningCategories(cats){const merged=structuredClone(cats||defaultCats);const keys=['外食・グルメ',...['飲食','飲食店'].filter(key=>Array.isArray(merged[key]))];for(const key of keys){if(!Array.isArray(merged[key]))merged[key]=[];for(const name of diningAdditions)if(!merged[key].includes(name))merged[key].push(name)}return merged}
 const state={user:null,logs:[],wishes:[],trashedLogs:[],trashedWishes:[],categories:structuredClone(defaultCats),media:null,tab:'home',unsubs:[],map:null,leafletPromise:null,pendingMapPoint:null,headerImg:null,headerX:0,headerY:0,headerZoom:1,headerBaseScale:1,photoCache:new Map(),headerPhotoIndex:null,visitSeq:0,toastTimer:null,loaded:{logs:false,wishes:false}};
 const alertMsg=(message,bad=false)=>{let el=$('toast');el.textContent=message;el.style.background=bad?'#963d40':'#193d58';el.classList.remove('hidden');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>el.classList.add('hidden'),4200)};
 const syncInfo=s=>{$('syncState').textContent=s};
@@ -90,7 +92,7 @@ $('login').addEventListener('click',async()=>{
 });
 $('logout').addEventListener('click',()=>signOut(auth).catch(e=>alertMsg(friendlyErr(e),true)));
 onAuthStateChanged(auth,user=>{if(!user){resetLogin();return}if(user.email?.toLowerCase()!==OWNER_EMAIL){$('loginError').textContent='このGoogleアカウントは許可されていません。元のライフログ用アカウントを選んでください。';signOut(auth).catch(()=>{});return}state.user=user;$('loginPage').classList.add('hidden');$('appPage').classList.remove('hidden');$('bottomNav').classList.remove('hidden');$('account').classList.remove('hidden');$('emailBadge').textContent=user.email;connectData()});
-function connectData(){for(const unsub of state.unsubs)unsub();state.unsubs=[];state.loaded={logs:false,wishes:false};syncInfo('Firestore接続中…');state.unsubs.push(onSnapshot(collection(db,'logs'),snap=>{{const items=snap.docs.map(d=>({id:d.id,...d.data()}));state.logs=items.filter(x=>!x.deleted);state.trashedLogs=items.filter(x=>x.deleted);state.loaded.logs=true};dataUpdated()},err=>syncInfo('思い出取得エラー: '+friendlyErr(err))));state.unsubs.push(onSnapshot(collection(db,'wishes'),snap=>{{const items=snap.docs.map(d=>({id:d.id,...d.data()}));state.wishes=items.filter(x=>!x.deleted);state.trashedWishes=items.filter(x=>x.deleted);state.loaded.wishes=true};dataUpdated()},err=>syncInfo('行きたい場所取得エラー: '+friendlyErr(err))));state.unsubs.push(onSnapshot(doc(db,'settings','categories'),snap=>{if(snap.exists()&&snap.data().majors)state.categories=snap.data().majors;refreshCategoryUi();render()},err=>syncInfo('カテゴリ取得エラー: '+friendlyErr(err))));state.unsubs.push(onSnapshot(doc(db,'media','header'),snap=>{state.media=snap.exists()?snap.data().dataUrl||null:null;applyHeader();},err=>alertMsg('ヘッダー画像: '+friendlyErr(err),true)))}
+function connectData(){for(const unsub of state.unsubs)unsub();state.unsubs=[];state.loaded={logs:false,wishes:false};syncInfo('Firestore接続中…');state.unsubs.push(onSnapshot(collection(db,'logs'),snap=>{{const items=snap.docs.map(d=>({id:d.id,...d.data()}));state.logs=items.filter(x=>!x.deleted);state.trashedLogs=items.filter(x=>x.deleted);state.loaded.logs=true};dataUpdated()},err=>syncInfo('思い出取得エラー: '+friendlyErr(err))));state.unsubs.push(onSnapshot(collection(db,'wishes'),snap=>{{const items=snap.docs.map(d=>({id:d.id,...d.data()}));state.wishes=items.filter(x=>!x.deleted);state.trashedWishes=items.filter(x=>x.deleted);state.loaded.wishes=true};dataUpdated()},err=>syncInfo('行きたい場所取得エラー: '+friendlyErr(err))));state.unsubs.push(onSnapshot(doc(db,'settings','categories'),snap=>{if(snap.exists()&&snap.data().majors)state.categories=ensureDiningCategories(snap.data().majors);else state.categories=ensureDiningCategories(defaultCats);refreshCategoryUi();render()},err=>syncInfo('カテゴリ取得エラー: '+friendlyErr(err))));state.unsubs.push(onSnapshot(doc(db,'media','header'),snap=>{state.media=snap.exists()?snap.data().dataUrl||null:null;applyHeader();},err=>alertMsg('ヘッダー画像: '+friendlyErr(err),true)))}
 function dataUpdated(){syncInfo(state.loaded.logs&&state.loaded.wishes?'● 本番接続済み・自動保存有効':'データを同期しています…');refreshCategoryUi();render()}
 const navButtons=[...document.querySelectorAll('[data-tab]')];function showTab(tab){state.tab=tab;document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hidden',el.id!==tab));document.querySelectorAll('.bottom-nav button').forEach(btn=>btn.classList.toggle('active',btn.dataset.tab===tab));render();if(tab==='map'){initPrefectureMap({state,esc,loadLeaflet});}if(tab==='map')loadMap().catch(e=>{$('mapHint').textContent='地図読み込みに失敗しました: '+friendlyErr(e)})}
 navButtons.forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
@@ -109,7 +111,8 @@ function cardLog(x){
       <div class="entry-title">${esc(x.title)}</div>
       ${x.place?`<a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer" class="entry-meta entry-address">📍 ${esc(x.place)} ↗</a>`:''}
       ${relatedLinksMarkup(x,true)}
-      <div class="entry-actions"><button class="primary slim record-open" data-view="${esc(x.id)}">記録を見る <span aria-hidden="true">›</span></button><button class="ghost slim" data-edit-log="${esc(x.id)}">編集する</button><button class="ghost slim danger-quiet" data-trash-log="${esc(x.id)}">削除</button></div>
+      ${visitCountBadge(x)}
+      <div class="entry-actions"><button class="ghost slim revisit-btn" data-revisit="${esc(x.id)}">♻️ 再訪</button><button class="primary slim record-open" data-view="${esc(x.id)}">記録を見る <span aria-hidden="true">›</span></button><button class="ghost slim" data-edit-log="${esc(x.id)}">編集する</button><button class="ghost slim danger-quiet" data-trash-log="${esc(x.id)}">削除</button></div>
     </div>
   </article>`;
 }
@@ -121,7 +124,7 @@ function cardGroupedVisit(x){
       <strong class="visit-title">${esc(x.title)}</strong>
       ${x.note?`<p class="entry-note visit-excerpt">${esc(x.note)}</p>`:''}
       ${relatedLinksMarkup(x,true)}
-      <div class="entry-actions"><button class="ghost slim" data-view="${esc(x.id)}">記録を見る ›</button><button class="ghost slim" data-edit-log="${esc(x.id)}">編集する</button><button class="ghost slim danger-quiet" data-trash-log="${esc(x.id)}">削除</button></div>
+      <div class="entry-actions"><button class="ghost slim revisit-btn" data-revisit="${esc(x.id)}">♻️ 再訪</button><button class="ghost slim" data-view="${esc(x.id)}">記録を見る ›</button><button class="ghost slim" data-edit-log="${esc(x.id)}">編集する</button><button class="ghost slim danger-quiet" data-trash-log="${esc(x.id)}">削除</button></div>
     </div>
   </div>`;
 }
@@ -463,7 +466,35 @@ function filteredLogs(){
   });
 }
 function groupKey(x){return String(x.groupName||((x.place||'').length>17?x.place:x.title)||x.id).trim().toLocaleLowerCase('ja')}
+function groupVisits(record){const key=groupKey(record);return state.logs.filter(x=>groupKey(x)===key)}
+function visitCountBadge(record){const count=groupVisits(record).length;return count>1?`<span class="visit-count-label" aria-label="この場所に${count}回訪問">♻️ ${count}回訪問</span>`:''}
+function renderRevisitPicker(){
+  const sel=$('revisitPlacePicker'),btn=$('revisitFromList');if(!sel||!btn)return;
+  const before=sel.value;
+  const grouped=new Map();
+  for(const x of dateSort(state.logs)){
+    const key=groupKey(x),entry=grouped.get(key);
+    if(entry){entry.count++;continue}
+    grouped.set(key,{record:x,count:1});
+  }
+  const entries=[...grouped.values()].sort((a,b)=>{
+    const ad=a.record.major==='外食・グルメ'||a.record.major==='飲食',bd=b.record.major==='外食・グルメ'||b.record.major==='飲食';
+    return (Number(bd)-Number(ad))||b.count-a.count||String(b.record.date||'').localeCompare(String(a.record.date||''));
+  });
+  sel.replaceChildren(new Option('以前行ったお店・場所を選ぶ',''));
+  for(const e of entries){
+    const label=e.record.groupName||e.record.title||'名称未設定';
+    const cat=e.record.major==='外食・グルメ'||e.record.major==='飲食'?'🍴 ':'📍 ';
+    sel.add(new Option(`${cat}${label}（${e.count}回）`,e.record.id));
+  }
+  if([...sel.options].some(o=>o.value===before))sel.value=before;
+  btn.disabled=!sel.value;
+}
+$('revisitPlacePicker').addEventListener('change',()=>{$('revisitFromList').disabled=!$('revisitPlacePicker').value});
+$('revisitFromList').addEventListener('click',()=>startRevisit($('revisitPlacePicker').value));
+
 function renderLogs(){
+  renderRevisitPicker();
   const a=dateSort(filteredLogs(),'date',$('logSort').value);
   $('logFilterCount').textContent=`該当 ${a.length} 件 ／ 全 ${state.logs.length} 件`; 
   const area=$('logsList');
@@ -474,9 +505,12 @@ function renderLogs(){
   }
   const groups=new Map();
   for(const x of a){const k=groupKey(x);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(x)}
+  const totalCounts=new Map();for(const x of state.logs){const k=groupKey(x);totalCounts.set(k,(totalCounts.get(k)||0)+1)}
   area.innerHTML=[...groups.values()].map((visits,i)=>{
     const name=visits[0].groupName||visits[0].title;
-    return `<details class="group card" ${i===0?'open':''}><summary class="group-summary"><span>📍 ${esc(name)}</span><small>${visits.length}回訪問 ▼</small></summary>${visits.map(cardGroupedVisit).join('')}</details>`;
+    const total=totalCounts.get(groupKey(visits[0]))||visits.length;
+    const count=total===visits.length?`${total}回訪問`:`全${total}回／表示${visits.length}回`;
+    return `<details class="group card" ${i===0?'open':''}><summary class="group-summary"><span>📍 ${esc(name)}</span><small>${count} ▼</small></summary><div class="group-revisit-tools"><button type="button" class="ghost slim revisit-btn" data-revisit="${esc(visits[0].id)}">♻️ この場所を再訪した</button></div>${visits.map(cardGroupedVisit).join('')}</details>`;
   }).join('')||empty('条件に一致する記録がありません');
   scheduleCardThumbnails(area);
 }
@@ -489,9 +523,69 @@ for(const id of ['wishSearch','wishSort','wishCategory','wishStatus'])$(id).addE
 function refreshCategoryUi(){refreshLogFilterUi();const majors=Object.keys(categoriesWithHistory());optionList($('wishCategory'),majors,'すべてのカテゴリ');const prev=$('fieldMajor').value;optionList($('fieldMajor'),majors);if(prev)$('fieldMajor').value=prev;updateMinor()}
 function updateMinor(){const arr=categoriesWithHistory()[$('fieldMajor').value]||[];optionList($('fieldMinor'),arr,'選択なし')}
 $('fieldMajor').addEventListener('change',updateMinor);
-function showDialog(d){d.showModal();d.scrollTop=0}
+function showDialog(d){if(!d.open)d.showModal();d.scrollTop=0}
 const MAX_RECORD_PHOTOS=5;
 const photoDraft={files:[],refs:[],previewUrls:[],token:0,ready:true};
+const revisitDraft={sourceId:null,photoMode:'reuse'};
+function resetRevisitForm(){
+  revisitDraft.sourceId=null;revisitDraft.photoMode='reuse';
+  $('revisitOptions').classList.add('hidden');$('revisitPhotoMode').value='reuse';
+  $('revisitPhotoStatus').textContent='';
+  $('fieldPhotos').closest('.photo-add-label')?.classList.remove('hidden');
+}
+function repaintRevisitPhotoMode(){
+  if(!revisitDraft.sourceId)return;
+  const mode=$('revisitPhotoMode').value;
+  revisitDraft.photoMode=mode;
+  resetPhotoDraft();
+  const add=$('fieldPhotos').closest('.photo-add-label');
+  add?.classList.toggle('hidden',mode!=='new');
+  if(mode==='none'){$('revisitPhotoStatus').textContent='写真を付けずに、この日の訪問を記録します。';paintPhotoDraft();return}
+  if(mode==='new'){$('revisitPhotoStatus').textContent='新しい写真を選べます（最大5枚）。元の写真は残ります。';paintPhotoDraft();return}
+  const source=state.logs.find(x=>x.id===revisitDraft.sourceId);
+  if(!source){photoDraft.ready=false;$('revisitPhotoStatus').textContent='元の記録が見つかりません。';paintPhotoDraft();return}
+  photoDraft.ready=false;paintPhotoDraft();
+  const token=photoDraft.token;
+  $('revisitPhotoStatus').textContent='以前の写真を確認中…';
+  void loadExistingPhotoCount(source,token).then(()=>{
+    if(token!==photoDraft.token||revisitDraft.photoMode!=='reuse')return;
+    $('revisitPhotoStatus').textContent=photoDraft.ready
+      ?(photoDraft.refs.length?`以前の写真 ${photoDraft.refs.length}枚を参照して再利用します（写真データは複製しません）。`:'以前の写真はありません。「新しい写真を登録」を選ぶと追加できます。')
+      :'写真の確認ができませんでした。別の選択肢にするか、通信を確認してください。';
+  });
+}
+$('revisitPhotoMode').addEventListener('change',()=>{
+  if(photoDraft.files.length&&!confirm('選択中の新しい写真を取り消して、写真の方法を切り替えますか？')){
+    $('revisitPhotoMode').value=revisitDraft.photoMode;return;
+  }
+  repaintRevisitPhotoMode();
+});
+function startRevisit(sourceId){
+  const source=state.logs.find(x=>x.id===sourceId);
+  if(!source){alertMsg('再訪元の記録が見つかりません。',true);return}
+  if($('visitDialog').open){$('visitDialog').close();state.visitSeq++}
+  edit('log');
+  revisitDraft.sourceId=source.id;
+  $('revisitOptions').classList.remove('hidden');
+  $('revisitSourceName').textContent=source.groupName||source.title;
+  $('dialogTitle').textContent='♻️ 再訪を登録';
+  $('saveButton').textContent='再訪を保存';
+  $('fieldTitle').value=source.title||'';
+  $('fieldDate').value=today();
+  $('fieldMajor').value=source.major||'外食・グルメ';updateMinor();
+  $('fieldMinor').value=source.minor||'';
+  $('fieldTrip').value=source.tripStyle||'未定';
+  $('fieldPlace').value=source.place||'';
+  $('fieldLat').value=source.lat??'';
+  $('fieldLng').value=source.lng??'';
+  $('fieldGroup').value=source.groupName||String((source.place||'').length>17?source.place:source.title||source.id).trim();
+  $('fieldNote').value='';
+  loadRelatedLinkRows(source);
+  $('revisitPhotoMode').value='reuse';
+  repaintRevisitPhotoMode();
+  $('fieldDate').focus({preventScroll:true});
+}
+
 function resetPhotoDraft(){
   for(const url of photoDraft.previewUrls)URL.revokeObjectURL(url);
   photoDraft.previewUrls=[];photoDraft.files=[];photoDraft.refs=[];
@@ -715,7 +809,7 @@ function collectRelatedLinks(){
   return list;
 }
 $('relatedLinkAdd').addEventListener('click',()=>addRelatedLinkRow());
-function edit(kind,id=''){const item=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);if(id&&!item){alertMsg('編集対象が見つかりません。再読み込みしてください。',true);return}$('editForm').reset();loadRelatedLinkRows(item);resetPhotoDraft();videoDraft.file=null;videoDraft.uploaded=null;videoDraft.existing=Array.isArray(item?.videos)?item.videos.filter(videoDriveId):[];$('fieldVideo').value='';$('fieldVideoDriveUrl').value='';$('videoUploadProgress').textContent='';paintVideoDraft();clearLocationCandidates();$('editKind').value=kind;$('editId').value=id;$('dialogTitle').textContent=id?'記録を編集':kind==='log'?'思い出を記録':'行きたい場所を登録';$('fieldTitle').value=item?.title||'';$('fieldDate').value=item?.date||item?.planDate||today();$('fieldPlace').value=item?.place||'';$('fieldNote').value=item?.note||item?.reason||'';$('fieldLat').value=item?.lat??'';$('fieldLng').value=item?.lng??'';$('fieldGroup').value=item?.groupName||'';$('fieldTrip').value=item?.tripStyle||'未定';$('fieldStatus').value=item?.status||'wish';$('statusArea').classList.toggle('hidden',kind==='log');$('fieldGroup').closest('label').classList.toggle('hidden',kind==='wish');refreshCategoryUi();$('fieldMajor').value=item?.major||Object.keys(state.categories)[0]||'外食・グルメ';updateMinor();$('fieldMinor').value=item?.minor||'';$('editError').textContent='';paintPhotoDraft();if(item){photoDraft.ready=false;paintPhotoDraft();void loadExistingPhotoCount(item,photoDraft.token)}$('saveButton').textContent=item?'変更を保存':'保存する';$('editDelete').classList.toggle('hidden',!item);$('editDelete').dataset.trashKind=kind;$('editDelete').dataset.trashId=item?.id||'';showDialog($('editDialog'))}
+function edit(kind,id=''){resetRevisitForm();const item=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);if(id&&!item){alertMsg('編集対象が見つかりません。再読み込みしてください。',true);return}$('editForm').reset();loadRelatedLinkRows(item);resetPhotoDraft();videoDraft.file=null;videoDraft.uploaded=null;videoDraft.existing=Array.isArray(item?.videos)?item.videos.filter(videoDriveId):[];$('fieldVideo').value='';$('fieldVideoDriveUrl').value='';$('videoUploadProgress').textContent='';paintVideoDraft();clearLocationCandidates();$('editKind').value=kind;$('editId').value=id;$('dialogTitle').textContent=id?'記録を編集':kind==='log'?'思い出を記録':'行きたい場所を登録';$('fieldTitle').value=item?.title||'';$('fieldDate').value=item?.date||item?.planDate||today();$('fieldPlace').value=item?.place||'';$('fieldNote').value=item?.note||item?.reason||'';$('fieldLat').value=item?.lat??'';$('fieldLng').value=item?.lng??'';$('fieldGroup').value=item?.groupName||'';$('fieldTrip').value=item?.tripStyle||'未定';$('fieldStatus').value=item?.status||'wish';$('statusArea').classList.toggle('hidden',kind==='log');$('fieldGroup').closest('label').classList.toggle('hidden',kind==='wish');refreshCategoryUi();$('fieldMajor').value=item?.major||Object.keys(state.categories)[0]||'外食・グルメ';updateMinor();$('fieldMinor').value=item?.minor||'';$('editError').textContent='';paintPhotoDraft();if(item){photoDraft.ready=false;paintPhotoDraft();void loadExistingPhotoCount(item,photoDraft.token)}$('saveButton').textContent=item?'変更を保存':'保存する';$('editDelete').classList.toggle('hidden',!item);$('editDelete').dataset.trashKind=kind;$('editDelete').dataset.trashId=item?.id||'';showDialog($('editDialog'))}
 async function photoData(file,maxSide=1200,quality=.7){const img=await createImageBitmap(file);try{const scale=Math.min(1,maxSide/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',quality)}finally{img.close()}}
 // v2.0.16: 日本の住所に多い郵便番号・空白・ビル名などで検索が失敗しても
 // 地図を直接選んで登録できる。検索サービスの候補は必ず本人が選ぶ。
@@ -1011,6 +1105,16 @@ $('fieldPlace').addEventListener('input',()=>{
 });
 
 async function saveEdit(e){e.preventDefault();const kind=$('editKind').value,id=$('editId').value||uniqueId();const title=$('fieldTitle').value.trim();if(!title){$('editError').textContent='名前を入力してください';return}const old=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id)||{};const lat=$('fieldLat').value,lng=$('fieldLng').value;if((lat||lng)&&!validCoord(lat,lng)){$('editError').textContent='緯度・経度が正しくありません';return}const base={...old,id,title,major:$('fieldMajor').value,minor:$('fieldMinor').value,tripStyle:$('fieldTrip').value,place:$('fieldPlace').value.trim(),note:$('fieldNote').value.trim(),lat:lat===''?null:Number(lat),lng:lng===''?null:Number(lng),groupName:$('fieldGroup').value.trim(),updatedAt:now(),createdAt:old.createdAt||now(),photos:[...(old.photos||[])]};if(kind==='log')base.date=$('fieldDate').value||today();else {base.planDate=$('fieldDate').value;base.status=$('fieldStatus').value;base.reason=base.note;if(base.status==='visited'&&!base.visitDate)base.visitDate=today()}
+if(revisitDraft.sourceId&&kind==='log'&&!$('editId').value){
+  if(!$('fieldDate').value){$('editError').textContent='再訪した日付を選んでください。';return}
+  if($('fieldDate').value>today()){$('editError').textContent='再訪日は今日以前の日付を選んでください。';return}
+  const source=state.logs.find(x=>x.id===revisitDraft.sourceId);
+  if(!source){$('editError').textContent='元の記録を確認できません。';return}
+  base.revisitSourceId=source.id;
+  base.revisitRootId=source.revisitRootId||source.id;
+  const siblings=state.logs.filter(x=>groupKey(x)===groupKey(base)&&canonicalVisitDate(x.date)===base.date);
+  if(siblings.length&&!confirm(`「${base.title}」には同じ日付（${base.date}）の記録が${siblings.length}件あります。もう1回分として追加しますか？`))return;
+}
 try{base.links=collectRelatedLinks()}catch(ex){$('editError').textContent=ex.message;return}
 const hadPin=validCoord(old.lat,old.lng);
 const willHavePin=validCoord(base.lat,base.lng);
@@ -1038,11 +1142,14 @@ if(videoDraft.file){
 }
 
 const f=[...photoDraft.files];
+if(revisitDraft.sourceId&&kind==='log'&&!$('editId').value){
+  base.photos=revisitDraft.photoMode==='reuse'?[...photoDraft.refs]:[];
+}
 if(photoDraft.refs.length+f.length>MAX_RECORD_PHOTOS)throw Error('1件の写真は最大5枚です。');for(const file of f){let dataUrl=await photoData(file,1300,.72);if(dataUrl.length>680000)dataUrl=await photoData(file,1000,.55);if(dataUrl.length>780000)throw new Error('画像を小さくできませんでした');const photoId=uniqueId();await setDoc(doc(db,'photos',photoId),{id:photoId,ownerId:id,kind,dataUrl,createdAt:now()});base.photos.push({type:'firestore',id:photoId,ref:photoId});cardThumbnailCache.delete(id)}await setDoc(doc(db,kind==='log'?'logs':'wishes',id),base);
 // Firestoreの書き込み成功後だけ画面の座標を更新。既存データは上書きしない。
 const inMemory=(kind==='log'?state.logs:state.wishes).find(x=>x.id===id);
 if(inMemory)Object.assign(inMemory,base);
-$('editDialog').close();resetPhotoDraft();videoDraft.file=null;videoDraft.uploaded=null;videoDraft.existing=[];$('videoUploadProgress').textContent='';
+$('editDialog').close();resetPhotoDraft();resetRevisitForm();videoDraft.file=null;videoDraft.uploaded=null;videoDraft.existing=[];$('videoUploadProgress').textContent='';
 render(); // ピンと「未登録一覧」の件数を即時更新する
 if(willHavePin&&locationChanged){
   const count=[...state.logs,...state.wishes].filter(x=>!validCoord(x.lat,x.lng)).length;
@@ -1052,7 +1159,7 @@ if(willHavePin&&locationChanged){
   if(state.tab==='map'&&state.map)state.map.setView([Number(base.lat),Number(base.lng)],13);
   alertMsg('✓ 位置を保存しました。マップでピンと未登録件数を確認してください。');
 }else if(willHavePin) alertMsg('✓ 記録を保存しました。登録済みの地図ピンは維持されています。');
-else alertMsg('✓ 記録を保存しました。地図ピンはまだ未登録です。');}catch(ex){$('editError').textContent='保存できません: '+friendlyErr(ex);$('videoUploadProgress').textContent=videoDraft.uploaded?'動画はDriveへ保存済みです。もう一度「保存する」を押すと、再アップロードせず記録への紐づけを試みます。':'Google Driveに保存できませんでした。下の「Driveに保存済みの動画リンク」を使う方法もあります。接続確認の結果を確認してください。';alertMsg('保存エラー',true)}finally{button.disabled=false;button.textContent='保存する'}}
+else alertMsg('✓ 記録を保存しました。地図ピンはまだ未登録です。');}catch(ex){$('editError').textContent='保存できません: '+friendlyErr(ex);$('videoUploadProgress').textContent=videoDraft.uploaded?'動画はDriveへ保存済みです。もう一度「保存する」を押すと、再アップロードせず記録への紐づけを試みます。':'Google Driveに保存できませんでした。下の「Driveに保存済みの動画リンク」を使う方法もあります。接続確認の結果を確認してください。';alertMsg('保存エラー',true)}finally{button.disabled=false;button.textContent=revisitDraft.sourceId?'再訪を保存':('変更を保存')}}
 $('editForm').addEventListener('submit',saveEdit);
 async function stampWish(id){
   const x=state.wishes.find(w=>w.id===id);
@@ -1122,7 +1229,10 @@ async function showVisit(id){
   const seq=++state.visitSeq;
   $('visitTitle').textContent=x.title;
   const body=$('visitBody');
-  body.innerHTML=`<p><strong>${esc(dateText(x.date))}</strong>　${esc(x.major||'')}/${esc(x.minor||'')}</p><p class="entry-note">${esc(x.note||'（感想なし）')}</p>${x.place?`<p><a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer">📍 Googleマップで開く ↗</a></p>`:''}${relatedLinksMarkup(x)}${videoButtonsMarkup(x)}<h3>この日の写真</h3><p class="photo-swipe-help">写真は左右にスワイプして見られます。タップで拡大します。</p><div id="visitPhotos" class="photo-strip"><p class="muted">写真を確認しています…</p></div>`;
+  const history=groupVisits(x).sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+  const historyMarkup=history.length>1?`<div class="revisit-history"><h3>♻️ この場所の訪問履歴（${history.length}回）</h3><div class="revisit-history-list">${history.map((v,i)=>`<button type="button" class="ghost slim" data-view="${esc(v.id)}">${i+1}回目　${esc(dateText(v.date))}</button>`).join('')}</div></div>`:'';
+  body.innerHTML=`<p><strong>${esc(dateText(x.date))}</strong>　${esc(x.major||'')}/${esc(x.minor||'')}</p><p class="entry-note">${esc(x.note||'（感想なし）')}</p>${x.place?`<p><a href="${mapsUrl(x.place)}" target="_blank" rel="noopener noreferrer">📍 Googleマップで開く ↗</a></p>`:''}${relatedLinksMarkup(x)}${videoButtonsMarkup(x)}${historyMarkup}<h3>この日の写真</h3><p class="photo-swipe-help">写真は左右にスワイプして見られます。タップで拡大します。</p><div id="visitPhotos" class="photo-strip"><p class="muted">写真を確認しています…</p></div>`;
+  $('visitRevisit').dataset.revisit=x.id;
   $('visitEdit').dataset.editLog=x.id;
   $('visitDelete').dataset.trashLog=x.id;
   showDialog($('visitDialog'));
@@ -1331,5 +1441,5 @@ $('saveHeader').addEventListener('click',async()=>{if(!state.headerImg){$('heade
 $('resetHeader').addEventListener('click',async()=>{if(!confirm('ヘッダーを標準に戻しますか？'))return;try{await setDoc(doc(db,'media','header'),{dataUrl:'',updatedAt:now()});alertMsg('標準ヘッダーに戻しました')}catch(e){alertMsg(friendlyErr(e),true)}});
 document.addEventListener('click',e=>{const b=e.target.closest('button,[data-action]');if(!b)return;if(b.dataset.close){$(b.dataset.close)?.close();return}if(b.dataset.action==='new-log'){edit('log');if(state.pendingMapPoint){$('fieldLat').value=state.pendingMapPoint.lat;$('fieldLng').value=state.pendingMapPoint.lng}}if(b.dataset.action==='new-wish'){edit('wish');if(state.pendingMapPoint){$('fieldLat').value=state.pendingMapPoint.lat;$('fieldLng').value=state.pendingMapPoint.lng}}if(b.dataset.videoId){const video=findVideoById(b.dataset.videoId);if(video)openVideoViewer(video)}
 if(b.dataset.wishVideos){const wish=state.wishes.find(x=>x.id===b.dataset.wishVideos);const video=wish?.videos?.find(videoDriveId);if(video)openVideoViewer(video)}
-if(b.dataset.photoPreview)openPhotoViewer(b.dataset.photoPreview);if(b.dataset.view)showVisit(b.dataset.view);if(b.dataset.editLog){if($('visitDialog').open){$('visitDialog').close();state.visitSeq++}edit('log',b.dataset.editLog)}if(b.dataset.trashLog)void moveToTrash('log',b.dataset.trashLog);if(b.dataset.trashKind&&b.dataset.trashId)void moveToTrash(b.dataset.trashKind,b.dataset.trashId);if(b.dataset.restoreKind&&b.dataset.restoreId)void restoreFromTrash(b.dataset.restoreKind,b.dataset.restoreId);if(b.dataset.editWish)edit('wish',b.dataset.editWish);if(b.dataset.stamp)stampWish(b.dataset.stamp);if(b.dataset.deleteWish)deleteWish(b.dataset.deleteWish);if(b.dataset.removeCat!==undefined)removeCat(b.dataset.removeCat,b.dataset.removeMinor)});
+if(b.dataset.photoPreview)openPhotoViewer(b.dataset.photoPreview);if(b.dataset.revisit)startRevisit(b.dataset.revisit);if(b.dataset.view)showVisit(b.dataset.view);if(b.dataset.editLog){if($('visitDialog').open){$('visitDialog').close();state.visitSeq++}edit('log',b.dataset.editLog)}if(b.dataset.trashLog)void moveToTrash('log',b.dataset.trashLog);if(b.dataset.trashKind&&b.dataset.trashId)void moveToTrash(b.dataset.trashKind,b.dataset.trashId);if(b.dataset.restoreKind&&b.dataset.restoreId)void restoreFromTrash(b.dataset.restoreKind,b.dataset.restoreId);if(b.dataset.editWish)edit('wish',b.dataset.editWish);if(b.dataset.stamp)stampWish(b.dataset.stamp);if(b.dataset.deleteWish)deleteWish(b.dataset.deleteWish);if(b.dataset.removeCat!==undefined)removeCat(b.dataset.removeCat,b.dataset.removeMinor)});
 refreshCategoryUi();drawHeader();
